@@ -3,7 +3,8 @@ import { clipboard } from "@toyz/loom/element";
 import { route } from "@toyz/loom/router";
 import { base } from "../styles";
 import { codeLines } from "../highlight";
-import { FEATURES, COMMAND_GROUPS, SESSION, INSTALL } from "../data";
+import { FEATURES, COMMAND_GROUPS, SESSION, INSTALL, REPO } from "../data";
+import { latestVersion, bindVersion } from "../store";
 
 const EXT_SAMPLE = `import "github.com/toyz/gw/gwext"
 
@@ -136,6 +137,16 @@ const homeStyles = css`
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+  }
+  .badges .rel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--amber);
+    transition: opacity 0.15s;
+  }
+  .badges .rel:hover {
+    opacity: 0.75;
   }
 
   .features {
@@ -288,6 +299,11 @@ const homeStyles = css`
 export class PageHome extends LoomElement {
   @reactive accessor copied = false;
 
+  // Re-render the hero's release badge when the shared version store lands.
+  firstUpdated() {
+    bindVersion(this);
+  }
+
   @clipboard("write")
   copyInstall() {
     this.copied = true;
@@ -296,6 +312,7 @@ export class PageHome extends LoomElement {
   }
 
   update() {
+    const version = latestVersion.value;
     return (
       <div class="wrap">
         <div class="hero">
@@ -335,6 +352,14 @@ export class PageHome extends LoomElement {
               <span>
                 <loom-icon name="check" size={13} color="var(--green)" /> MIT
               </span>
+              {version ? (
+                <a class="rel" href={REPO + "/releases/latest"}>
+                  <loom-icon name="git-branch" size={13} color="var(--amber)" />{" "}
+                  {version}
+                </a>
+              ) : (
+                ""
+              )}
             </div>
           </div>
 

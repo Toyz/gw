@@ -3,12 +3,19 @@ import { RouteChanged } from "@toyz/loom/router";
 import "@toyz/loom/router"; // registers <loom-outlet> and <loom-link>
 import { base } from "./styles";
 import { REPO } from "./data";
+import { latestVersion, bindVersion } from "./store";
 
 // Shell: sticky header with route-aware nav, the routed outlet, and a footer.
 @component("gw-site")
 @styles(base)
 export class GwSite extends LoomElement {
   @reactive accessor path = currentPath();
+
+  // Subscribe to the shared release store (and kick off the one-per-session
+  // fetch). When the tag lands, the header pill re-renders.
+  firstUpdated() {
+    bindVersion(this);
+  }
 
   @on(RouteChanged)
   onRoute() {
@@ -17,6 +24,7 @@ export class GwSite extends LoomElement {
 
   update() {
     const active = (to: string) => (this.path === to ? "active" : "");
+    const version = latestVersion.value;
     return (
       <div>
         <header>
@@ -36,6 +44,13 @@ export class GwSite extends LoomElement {
               <loom-link to="/ci" class={active("/ci")}>
                 CI
               </loom-link>
+              {version ? (
+                <a class="ver" href={REPO + "/releases/latest"}>
+                  {version}
+                </a>
+              ) : (
+                ""
+              )}
               <a class="gh" href={REPO}>
                 <loom-icon name="github" size={16} /> GitHub
               </a>

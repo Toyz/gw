@@ -99,6 +99,19 @@ export const base = css`
     color: var(--text);
     border-color: #2c343e;
   }
+  .ver {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.2rem 0.5rem;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .ver:hover {
+    color: var(--amber);
+    border-color: #2c343e;
+  }
 
   /* footer */
   footer {
