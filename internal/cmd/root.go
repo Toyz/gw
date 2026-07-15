@@ -32,6 +32,7 @@ func newRootCmd() *cobra.Command {
 		newSyncCmd(),
 		newLintCmd(),
 		newRunCmd(),
+		newBuildCmd(),
 		newTestCmd(),
 		newTidyCmd(),
 		newListCmd(),
@@ -88,7 +89,7 @@ func loadWorkspace() (root string, cfg workspace.Config, mods []workspace.Module
 func loadWorkspaceAt(root string) (_ string, cfg workspace.Config, mods []workspace.Module, err error) {
 	cfg, err = workspace.LoadConfig(root)
 	if err != nil {
-		return "", workspace.Config{}, nil, fmt.Errorf("reading %s: %w", workspace.ConfigFile, err)
+		return "", workspace.Config{}, nil, fmt.Errorf("reading gw config: %w", err)
 	}
 	if cfg.Root != "" {
 		if filepath.IsAbs(cfg.Root) {

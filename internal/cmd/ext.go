@@ -30,9 +30,18 @@ func toGwextModules(mods []workspace.Module) []gwext.Module {
 }
 
 // fireHook runs a lifecycle hook if an extension is present. Best-effort: errors
-// are surfaced to stderr but never abort the builtin command.
+// are surfaced to stderr but never abort the builtin command. Hooks inherit the
+// workspace's configured env (config-level only; per-invocation --env flags stay
+// scoped to the module commands themselves).
 func fireHook(cmd *cobra.Command, root string, mods []workspace.Module, event string) {
-	if err := ext.RunHook(root, event, toGwextModules(mods), cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+	var env []string
+	if cfg, err := workspace.LoadConfig(root); err == nil {
+		if env, err = workspace.ResolveEnv(root, cfg, nil, nil); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "hook %s: env: %v\n", event, err)
+			env = nil
+		}
+	}
+	if err := ext.RunHook(root, event, toGwextModules(mods), env, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "hook %s: %v\n", event, err)
 	}
 }
@@ -173,11 +182,15 @@ func attachExtCommands(rootCmd *cobra.Command) {
 				if err != nil {
 					return err
 				}
-				_, _, mods, err := loadWorkspaceAt(r)
+				_, cfg, mods, err := loadWorkspaceAt(r)
 				if err != nil {
 					return err
 				}
-				return ext.RunCommand(r, toGwextModules(mods), name, args, cmd.OutOrStdout(), cmd.ErrOrStderr())
+				env, err := workspace.ResolveEnv(r, cfg, nil, nil)
+				if err != nil {
+					return err
+				}
+				return ext.RunCommand(r, toGwextModules(mods), name, args, env, cmd.OutOrStdout(), cmd.ErrOrStderr())
 			},
 		})
 	}

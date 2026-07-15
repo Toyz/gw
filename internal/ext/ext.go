@@ -80,18 +80,21 @@ func Manifest(root string) (gwext.Manifest, error) {
 }
 
 // RunCommand builds the extension and runs a custom command, streaming stdio.
-func RunCommand(root string, mods []gwext.Module, name string, args []string, stdout, stderr io.Writer) error {
+// extraEnv holds KEY=VALUE overrides (from workspace config) inherited by the
+// extension process and anything it spawns.
+func RunCommand(root string, mods []gwext.Module, name string, args, extraEnv []string, stdout, stderr io.Writer) error {
 	bin, err := Build(root)
 	if err != nil {
 		return err
 	}
 	argv := append([]string{sentinel, "command", name}, args...)
-	return run(bin, argv, env(root, mods, ""), stdout, stderr)
+	return run(bin, argv, env(root, extraEnv), modulesReader(mods), stdout, stderr)
 }
 
 // RunHook builds the extension (if present) and fires an event. It is a no-op
 // when no extension exists. Hook failures are returned so callers can surface them.
-func RunHook(root, event string, mods []gwext.Module, stdout, stderr io.Writer) error {
+// extraEnv is inherited by the extension process (see RunCommand).
+func RunHook(root, event string, mods []gwext.Module, extraEnv []string, stdout, stderr io.Writer) error {
 	if !Exists(root) {
 		return nil
 	}
@@ -99,26 +102,34 @@ func RunHook(root, event string, mods []gwext.Module, stdout, stderr io.Writer) 
 	if err != nil {
 		return err
 	}
-	return run(bin, []string{sentinel, "hook", event}, env(root, mods, event), stdout, stderr)
+	return run(bin, []string{sentinel, "hook", event}, env(root, extraEnv), modulesReader(mods), stdout, stderr)
 }
 
-func run(bin string, argv []string, environ []string, stdout, stderr io.Writer) error {
+func run(bin string, argv []string, environ []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	cmd := exec.Command(bin, argv...)
 	cmd.Env = environ
+	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	return cmd.Run()
 }
 
-func env(root string, mods []gwext.Module, event string) []string {
-	e := append(os.Environ(), "GW_ROOT="+root)
-	if data, err := json.Marshal(mods); err == nil {
-		e = append(e, "GW_MODULES="+string(data))
+// env is the environment handed to the extension: the ambient environment plus
+// GW_ROOT and any workspace-config overrides (extra). Only small, bounded values
+// belong here; the module set is streamed over stdin (see modulesReader) because
+// a large workspace would exceed the OS per-variable size limit.
+func env(root string, extra []string) []string {
+	return append(append(os.Environ(), "GW_ROOT="+root), extra...)
+}
+
+// modulesReader marshals mods into the JSON payload the SDK reads from stdin.
+// A marshal failure degrades to an empty set rather than aborting the run.
+func modulesReader(mods []gwext.Module) io.Reader {
+	data, err := json.Marshal(mods)
+	if err != nil {
+		data = []byte("[]")
 	}
-	if event != "" {
-		e = append(e, "GW_EVENT="+event)
-	}
-	return e
+	return bytes.NewReader(data)
 }
 
 // hashDir returns a hex SHA-256 over the sorted (relpath, content) of every file

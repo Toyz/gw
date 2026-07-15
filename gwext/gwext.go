@@ -24,13 +24,14 @@ package gwext
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
 )
 
-// Module mirrors a workspace module as gw sees it. It is passed to extensions
-// via the environment; extension code reads it through Context.Modules.
+// Module mirrors a workspace module as gw sees it. gw streams the module set to
+// extensions over stdin; extension code reads it through Context.Modules.
 type Module struct {
 	Path      string            `json:"path"`
 	Dir       string            `json:"dir"`
@@ -312,8 +313,10 @@ func runHook(event string) {
 
 func contextFromEnv() *Context {
 	ctx := &Context{Root: os.Getenv("GW_ROOT")}
-	if raw := os.Getenv("GW_MODULES"); raw != "" {
-		_ = json.Unmarshal([]byte(raw), &ctx.Modules)
+	// gw streams the module set over stdin (env vars have a size ceiling a large
+	// workspace would exceed). An empty payload just yields no modules.
+	if data, err := io.ReadAll(os.Stdin); err == nil && len(data) > 0 {
+		_ = json.Unmarshal(data, &ctx.Modules)
 	}
 	return ctx
 }

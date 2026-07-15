@@ -13,27 +13,36 @@ import (
 type execFlags struct {
 	parallel        bool
 	continueOnError bool
+	envFiles        []string
+	envVars         []string
 }
 
 func (f *execFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&f.parallel, "parallel", "p", false, "run modules concurrently")
 	cmd.Flags().BoolVar(&f.continueOnError, "continue-on-error", false, "keep going after a module fails (serial)")
+	cmd.Flags().StringArrayVar(&f.envFiles, "env-file", nil, "load environment from a dotenv file (repeatable)")
+	cmd.Flags().StringArrayVar(&f.envVars, "env", nil, "set an environment variable KEY=VALUE (repeatable)")
 }
 
 // runArgvAcross discovers modules and runs argv in each, printing a summary and
 // returning an error that yields the worst module exit code.
 func runArgvAcross(cmd *cobra.Command, f execFlags, argv []string) error {
-	root, _, mods, err := loadWorkspace()
+	root, cfg, mods, err := loadWorkspace()
 	if err != nil {
 		return err
 	}
 	if len(mods) == 0 {
 		return fmt.Errorf("no modules found")
 	}
+	env, err := workspace.ResolveEnv(root, cfg, f.envFiles, f.envVars)
+	if err != nil {
+		return err
+	}
 	fireHook(cmd, root, mods, "pre-"+cmd.Name())
 	results := workspace.RunAcross(context.Background(), mods, argv, workspace.ExecOpts{
 		Parallel:        f.parallel,
 		ContinueOnError: f.continueOnError,
+		Env:             env,
 		Stdout:          cmd.OutOrStdout(),
 		Stderr:          cmd.ErrOrStderr(),
 	})
@@ -54,6 +63,23 @@ func newRunCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runArgvAcross(cmd, f, args)
+		},
+	}
+	f.bind(cmd)
+	return cmd
+}
+
+func newBuildCmd() *cobra.Command {
+	var f execFlags
+	cmd := &cobra.Command{
+		Use:   "build [packages/flags...]",
+		Short: "Run `go build` in every module (default ./...)",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				args = []string{"./..."}
+			}
+			return runArgvAcross(cmd, f, append([]string{"go", "build"}, args...))
 		},
 	}
 	f.bind(cmd)

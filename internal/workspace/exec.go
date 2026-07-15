@@ -19,6 +19,9 @@ type ExecOpts struct {
 	MaxParallel int
 	// ContinueOnError keeps running remaining modules after one fails (serial only).
 	ContinueOnError bool
+	// Env holds KEY=VALUE overrides layered on top of the ambient environment for
+	// every module command. Nil leaves the child environment inherited as-is.
+	Env []string
 	// Stdout/Stderr receive command output. Defaults to os.Stdout/os.Stderr.
 	Stdout io.Writer
 	Stderr io.Writer
@@ -52,7 +55,7 @@ func RunAcross(ctx context.Context, mods []Module, argv []string, opts ExecOpts)
 	if !opts.Parallel {
 		for i, m := range mods {
 			fmt.Fprintf(opts.Stdout, "== %s ==\n", m.Path)
-			results[i] = runOne(ctx, m, argv, opts.Stdout, opts.Stderr)
+			results[i] = runOne(ctx, m, argv, opts.Env, opts.Stdout, opts.Stderr)
 			if results[i].Failed() && !opts.ContinueOnError {
 				for j := i + 1; j < len(mods); j++ {
 					results[j] = ModuleResult{Module: mods[j], ExitCode: -1, Err: errSkipped}
@@ -77,7 +80,7 @@ func RunAcross(ctx context.Context, mods []Module, argv []string, opts ExecOpts)
 			defer wg.Done()
 			defer func() { <-sem }()
 			buf := &syncBuffer{}
-			results[i] = runOne(ctx, m, argv, buf, buf)
+			results[i] = runOne(ctx, m, argv, opts.Env, buf, buf)
 			flushMu.Lock()
 			fmt.Fprintf(opts.Stdout, "== %s ==\n", m.Path)
 			_, _ = opts.Stdout.Write(buf.Bytes())
@@ -88,10 +91,13 @@ func RunAcross(ctx context.Context, mods []Module, argv []string, opts ExecOpts)
 	return results
 }
 
-func runOne(ctx context.Context, m Module, argv []string, stdout, stderr io.Writer) ModuleResult {
+func runOne(ctx context.Context, m Module, argv, env []string, stdout, stderr io.Writer) ModuleResult {
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = m.Dir
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	err := cmd.Run()

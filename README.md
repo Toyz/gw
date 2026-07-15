@@ -17,9 +17,10 @@ go install github.com/toyz/gw@latest
 | `gw init` | Bootstrap an existing multi-module repo: create `go.work` and **move** every `replace` directive out of each `go.mod` up into `go.work`. Refuses to clobber an existing `go.work` (use `--force`). `--dry-run` previews. |
 | `gw sync` | Regenerate `go.work`'s `use` set from discovered modules (preserving `replace`/`godebug`), then run `go work sync`. `--check` (CI: exit non-zero if stale), `--dry-run`, `--no-work-sync`. |
 | `gw lint` | Report dependencies required at different versions across modules, plus mismatched `go`/`toolchain` directives. Exits non-zero on mismatch. `--fix` aligns dependency versions (`--strategy highest\|lowest`); directive mismatches are reported, never auto-changed. |
-| `gw run -- <cmd>` | Run a command in every module's directory. `-p` parallel, `--continue-on-error`. |
-| `gw test [args]` | `go test` across every module (default `./...`). `-p` parallel. |
-| `gw tidy` | `go mod tidy` across every module. `-p` parallel. |
+| `gw run -- <cmd>` | Run a command in every module's directory. `-p` parallel, `--continue-on-error`. Inject env with `--env-file <f>` (dotenv, repeatable) and `--env KEY=VAL` (repeatable); see [Config](#config-optional-gwtoml). |
+| `gw build [args]` | `go build` across every module (default `./...`) — a per-module compile check with a pass/fail summary. `-p` parallel; same `--env-file`/`--env` as `run`. |
+| `gw test [args]` | `go test` across every module (default `./...`). `-p` parallel; same `--env-file`/`--env` as `run`. |
+| `gw tidy` | `go mod tidy` across every module. `-p` parallel; same `--env-file`/`--env` as `run`. |
 | `gw list` | List modules; `-v` adds go version + external requires; `--json`. |
 | `gw add <path>` / `gw remove <path>` | Add/remove a single module's `use` directive. |
 | `gw graph` | Print the intra-workspace dependency DAG (edge A->B = A requires B). Text, `--dot` (Graphviz), or `--json`. Edges come from direct/indirect requires and local `replace` targets. |
@@ -29,21 +30,43 @@ go install github.com/toyz/gw@latest
 `-C, --root <dir>` sets the workspace root (default: nearest ancestor with a
 `go.work`, else the current directory).
 
-## Config (optional `gw.yaml`)
+## Config (optional `gw.toml`)
 
-Zero-config works. To customize, drop a `gw.yaml` at the workspace root:
+Zero-config works. To customize, drop a `gw.toml` at the workspace root (TOML is
+preferred; a `gw.yaml` / `gw.yml` with the same keys still works — if both exist,
+`gw.toml` wins):
 
-```yaml
-root: .
-ignore:
-  - "examples/**"
-  - "**/testdata"
-pins:                        # force these versions in `gw lint --fix`
-  github.com/foo/bar: v1.4.0
+```toml
+root = "."
+ignore = ["examples/**", "**/testdata"]
+env_files = ["ci.env"]          # dotenv files layered on top of [env], in order
+
+[pins]                          # force these versions in `gw lint --fix`
+"github.com/foo/bar" = "v1.4.0"
+
+[env]                           # applied to run/test/tidy, hooks, and extensions
+CGO_ENABLED = "0"
 ```
 
-Directories `.git`, `vendor`, `testdata`, `node_modules`, `.idea`, `.vscode`
-are always skipped.
+Directories `.git`, `.gw`, `vendor`, `testdata`, `node_modules`, `.idea`,
+`.vscode` are always skipped.
+
+### Environment injection (opt-in)
+
+Nothing is injected unless you ask for it. Sources, lowest precedence to highest:
+
+1. `[env]` in the config file
+2. `env_files` in the config file (in order)
+3. `--env-file <path>` on `run`/`test`/`tidy` (repeatable, in order)
+4. `--env KEY=VAL` on `run`/`test`/`tidy` (repeatable)
+
+Each layer overlays the ambient process environment; a later layer wins on a key
+collision. The config layers (`[env]` + `env_files`) apply to everything gw
+spawns — module commands, lifecycle hooks, and extension commands — so they are
+the place for workspace-wide settings. The `--env*` flags are per-invocation and
+scoped to that command's module runs. Dotenv files support `# comments`, a
+leading `export `, and single/double quotes (`\n \t \r \" \\` inside double
+quotes); values are otherwise literal (no `$VAR` interpolation).
 
 ## CI (GitHub Action)
 
@@ -124,7 +147,7 @@ func main() {
 - `c.Go(dir, args...)`, `c.Run(dir, bin, args...)`, `c.Start(...)` for root-level or
   arbitrary directories.
 
-**Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `test`, `tidy`
+**Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `build`, `test`, `tidy`
 (e.g. `post-sync`, `pre-test`). Custom command names that collide with a builtin
 are ignored (builtins always win). The compiled binary is cached under `.gw/bin/`
 (git-ignored) and rebuilt only when `.gw` sources change.
