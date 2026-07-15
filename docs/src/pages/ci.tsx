@@ -262,7 +262,7 @@ export class PageCI extends LoomElement {
   @inject(ReleaseService) accessor release!: ReleaseService;
 
   update() {
-    const rows = inputs(this.release.tag.value);
+    const rows = inputs(this.release.tag);
     return (
       <div class="wrap">
         <div class="hero">

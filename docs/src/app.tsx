@@ -36,7 +36,7 @@ export class GwSite extends LoomElement {
 
   update() {
     const active = (to: string) => (this.path === to ? "active" : "");
-    const version = this.release.tag.value;
+    const version = this.release.tag;
     return (
       <div>
         <header>

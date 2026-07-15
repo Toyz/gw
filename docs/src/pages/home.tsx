@@ -327,7 +327,7 @@ export class PageHome extends LoomElement {
   }
 
   update() {
-    const version = this.release.tag.value;
+    const version = this.release.tag;
     return (
       <div class="wrap">
         <div class="hero">
