@@ -1,0 +1,72 @@
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/spf13/cobra"
+	"github.com/toyz/gw/internal/workspace"
+)
+
+func newAffectedCmd() *cobra.Command {
+	var (
+		since     string
+		seedsOnly bool
+		asDirs    bool
+		asJSON    bool
+	)
+	cmd := &cobra.Command{
+		Use:   "affected --since <ref>",
+		Short: "List modules impacted by changes since a git ref",
+		Long: "affected diffs the working tree against a git ref, maps changed files to their\n" +
+			"owning modules, and walks the dependency graph to every module that must be\n" +
+			"rebuilt/retested. Feed it to selective CI, e.g. `gw affected --since main`.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if since == "" {
+				return fmt.Errorf("--since <ref> is required")
+			}
+			root, _, mods, err := loadWorkspace()
+			if err != nil {
+				return err
+			}
+			gitRoot, err := workspace.GitRoot(root)
+			if err != nil {
+				return fmt.Errorf("not a git repository (or git unavailable): %w", err)
+			}
+			changed, err := workspace.ChangedFiles(gitRoot, since)
+			if err != nil {
+				return fmt.Errorf("git diff against %q: %w", since, err)
+			}
+
+			g := workspace.BuildGraph(mods)
+			seeds, impacted := workspace.AffectedModules(g, mods, changed)
+
+			result := impacted
+			if seedsOnly {
+				result = seeds
+			}
+			out := cmd.OutOrStdout()
+
+			if asJSON {
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(map[string][]string{"seeds": seeds, "impacted": impacted})
+			}
+
+			for _, p := range result {
+				if asDirs {
+					fmt.Fprintln(out, workspace.UsePath(root, g.Module(p).Dir))
+					continue
+				}
+				fmt.Fprintln(out, p)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&since, "since", "", "git ref to diff against (e.g. main, HEAD~1)")
+	cmd.Flags().BoolVar(&seedsOnly, "seeds", false, "only directly-changed modules (skip dependents)")
+	cmd.Flags().BoolVar(&asDirs, "dir", false, "print module use-paths instead of module paths")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON {seeds, impacted}")
+	return cmd
+}

@@ -1,0 +1,35 @@
+name: gw
+description: Run gw to validate a Go workspace (go.work) in CI.
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  command:
+    description: >-
+      The gw subcommand(s) and flags to run, e.g. "doctor --strict",
+      "sync --check", or "lint". Runs from working-directory.
+    required: false
+    default: doctor --strict
+  version:
+    description: gw version to install (a module version/tag, branch, or "latest").
+    required: false
+    default: latest
+  working-directory:
+    description: Directory to run gw in (the workspace root).
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Install gw
+      shell: bash
+      run: |
+        set -euo pipefail
+        go install "github.com/toyz/gw@${{ inputs.version }}"
+        echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+    - name: Run gw
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: gw ${{ inputs.command }}

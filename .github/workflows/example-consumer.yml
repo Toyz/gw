@@ -1,0 +1,27 @@
+# Example: how a repo that USES gw would validate its go.work in CI.
+# Copy this into your workspace repo's .github/workflows/ and adjust as needed.
+name: workspace
+
+on:
+  pull_request:
+
+jobs:
+  gw:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needed for `gw affected --since`
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      # go.work is current, no dependency/directive drift, no orphans.
+      - uses: toyz/gw@v1
+        with:
+          command: doctor --strict
+
+      # Or run only the modules affected by this PR:
+      - uses: toyz/gw@v1
+        with:
+          command: affected --since origin/${{ github.base_ref }}

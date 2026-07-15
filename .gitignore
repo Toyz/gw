@@ -1,0 +1,9 @@
+# Built binary
+/gw
+
+# Go workspace sum (generated)
+go.work.sum
+
+# Editor
+.idea/
+.vscode/
