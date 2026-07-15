@@ -77,7 +77,7 @@ quotes); values are otherwise literal (no `$VAR` interpolation).
 ```yaml
 - uses: actions/setup-go@v5
   with: { go-version: stable }
-- uses: toyz/gw@v1
+- uses: toyz/gw@v0
   with:
     command: doctor --strict   # default; or "sync --check", "lint", "affected --since main"
 ```

@@ -17,11 +17,11 @@ jobs:
           go-version: stable
 
       # go.work is current, no dependency/directive drift, no orphans.
-      - uses: toyz/gw@v1
+      - uses: toyz/gw@v0
         with:
           command: doctor --strict
 
       # Or run only the modules affected by this PR:
-      - uses: toyz/gw@v1
+      - uses: toyz/gw@v0
         with:
           command: affected --since origin/${{ github.base_ref }}
