@@ -1,6 +1,9 @@
 # Built binary
 /gw
 
+# Compiled extension cache
+.gw/bin/
+
 # Go workspace sum (generated)
 go.work.sum
 

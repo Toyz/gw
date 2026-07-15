@@ -40,13 +40,16 @@ func newRootCmd() *cobra.Command {
 		newGraphCmd(),
 		newAffectedCmd(),
 		newDoctorCmd(),
+		newExtCmd(),
 	)
 	return root
 }
 
 // Execute runs the gw CLI.
 func Execute() {
-	if err := newRootCmd().Execute(); err != nil {
+	root := newRootCmd()
+	attachExtCommands(root)
+	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "gw:", err)
 		os.Exit(1)
 	}
@@ -78,6 +81,11 @@ func loadWorkspace() (root string, cfg workspace.Config, mods []workspace.Module
 	if err != nil {
 		return "", workspace.Config{}, nil, err
 	}
+	return loadWorkspaceAt(root)
+}
+
+// loadWorkspaceAt loads config and discovers modules for an already-resolved root.
+func loadWorkspaceAt(root string) (_ string, cfg workspace.Config, mods []workspace.Module, err error) {
 	cfg, err = workspace.LoadConfig(root)
 	if err != nil {
 		return "", workspace.Config{}, nil, fmt.Errorf("reading %s: %w", workspace.ConfigFile, err)

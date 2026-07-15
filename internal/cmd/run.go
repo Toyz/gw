@@ -23,13 +23,14 @@ func (f *execFlags) bind(cmd *cobra.Command) {
 // runArgvAcross discovers modules and runs argv in each, printing a summary and
 // returning an error that yields the worst module exit code.
 func runArgvAcross(cmd *cobra.Command, f execFlags, argv []string) error {
-	_, _, mods, err := loadWorkspace()
+	root, _, mods, err := loadWorkspace()
 	if err != nil {
 		return err
 	}
 	if len(mods) == 0 {
 		return fmt.Errorf("no modules found")
 	}
+	fireHook(cmd, root, mods, "pre-"+cmd.Name())
 	results := workspace.RunAcross(context.Background(), mods, argv, workspace.ExecOpts{
 		Parallel:        f.parallel,
 		ContinueOnError: f.continueOnError,
@@ -37,6 +38,7 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, argv []string) error {
 		Stderr:          cmd.ErrOrStderr(),
 	})
 	workspace.PrintSummary(cmd.OutOrStdout(), results)
+	fireHook(cmd, root, mods, "post-"+cmd.Name())
 	if code := workspace.WorstExit(results); code != 0 {
 		os.Exit(code)
 	}

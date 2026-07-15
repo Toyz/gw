@@ -61,6 +61,74 @@ Inputs: `command` (default `doctor --strict`), `version` (default `latest`),
 `working-directory` (default `.`). Requires Go on the runner (`actions/setup-go`).
 See [.github/workflows/example-consumer.yml](.github/workflows/example-consumer.yml).
 
+## Extensions (`.gw/build.go`)
+
+Extend gw with your own commands and lifecycle hooks by writing a compiled Go
+extension — think Cargo's `build.rs`. Scaffold it:
+
+```
+gw ext init      # creates .gw/build.go + .gw/go.mod
+gw ext list      # show the extension's commands + hooks
+gw ext build     # compile (cached by content hash; auto-built on use)
+```
+
+`.gw/build.go` registers commands and hooks against the `gwext` SDK. Because it
+is real compiled Go, a command can orchestrate anything — build and run services
+in a fixed order, fan out in parallel, or drive polyglot tools:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/toyz/gw/gwext"
+)
+
+func main() {
+	// `gw boot`: build then run three services in a fixed order.
+	gwext.Command("boot", "build+run services in order", func(c *gwext.Context) error {
+		for _, p := range []string{"example.com/worker", "example.com/api", "example.com/gateway"} {
+			m := c.Mod(p)
+			if err := m.Build(); err != nil { // typed: go build ./...
+				return err
+			}
+			if err := m.Run(); err != nil {   // typed: go run .
+				return err
+			}
+		}
+		return nil
+	})
+
+	// Polyglot: run any tool in a module's directory.
+	gwext.Command("web", "start the frontend", func(c *gwext.Context) error {
+		return c.Mod("example.com/web").Exec("npm", "run", "dev")
+	})
+
+	// Hook: runs automatically after `gw sync`.
+	gwext.Hook("post-sync", func(c *gwext.Context) error {
+		fmt.Printf("synced %d modules\n", len(c.Modules))
+		return nil
+	})
+
+	gwext.Main()
+}
+```
+
+**Context helpers** (on `*gwext.Context`):
+
+- `c.Modules`, `c.Module(path)`, `c.Root`, `c.Args` (command args), `c.Event` (hook).
+- `c.Mod(path)` -> typed handle: `.Build() .Test() .Run() .Vet() .Generate() .Tidy()`
+  (each defaults to `./...`/`.`), `.Go(args...)`, `.Exec(bin, args...)`, `.Start(...)`
+  for long-lived processes.
+- `c.Go(dir, args...)`, `c.Run(dir, bin, args...)`, `c.Start(...)` for root-level or
+  arbitrary directories.
+
+**Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `test`, `tidy`
+(e.g. `post-sync`, `pre-test`). Custom command names that collide with a builtin
+are ignored (builtins always win). The compiled binary is cached under `.gw/bin/`
+(git-ignored) and rebuilt only when `.gw` sources change.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

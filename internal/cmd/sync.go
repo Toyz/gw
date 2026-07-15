@@ -43,6 +43,9 @@ func newSyncCmd() *cobra.Command {
 			added, removed := workspace.SetUseSet(wf, root, mods)
 
 			out := cmd.OutOrStdout()
+			if !check && !dryRun {
+				fireHook(cmd, root, mods, "pre-sync")
+			}
 			for _, p := range added {
 				fmt.Fprintf(out, "+ %s\n", p)
 			}
@@ -78,6 +81,7 @@ func newSyncCmd() *cobra.Command {
 					return fmt.Errorf("go work sync: %w", err)
 				}
 			}
+			fireHook(cmd, root, mods, "post-sync")
 			return nil
 		},
 	}
