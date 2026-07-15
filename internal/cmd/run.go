@@ -46,7 +46,7 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 		return fmt.Errorf("no modules found")
 	}
 
-	base, info, err := workspaceEnv(root, cfg, mods)
+	base, res, err := workspaceEnv(root, cfg, mods)
 	if err != nil {
 		return err
 	}
@@ -54,24 +54,39 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 	if err != nil {
 		return err
 	}
-	env := append(base, cli...)
 
-	argv := append([]string{}, prefix...)
-	if inj.tags {
-		if tags := dedupStrings(info.Tags); len(tags) > 0 {
-			argv = append(argv, "-tags="+strings.Join(tags, ","))
+	// Build a per-module job. Env precedence: config < global provider <
+	// per-module provider < CLI --env. Compiling commands weave the merged
+	// tags/vars (global + this module's) into the argv.
+	jobs := make([]workspace.Job, len(mods))
+	for i, m := range mods {
+		each := res.Each[m.Path] // zero BuildInfo when a module has no override
+
+		env := append([]string{}, base...)
+		env = append(env, sortedEnv(each.Env)...)
+		env = append(env, cli...)
+
+		argv := append([]string{}, prefix...)
+		if inj.tags {
+			tags := dedupStrings(append(append([]string{}, res.Tags...), each.Tags...))
+			if len(tags) > 0 {
+				argv = append(argv, "-tags="+strings.Join(tags, ","))
+			}
 		}
+		if inj.ldflags {
+			if vars := mergeVars(res.Vars, each.Vars); len(vars) > 0 {
+				argv = append(argv, "-ldflags="+ldflagsX(vars))
+			}
+		}
+		argv = append(argv, userArgs...)
+
+		jobs[i] = workspace.Job{Module: m, Argv: argv, Env: env}
 	}
-	if inj.ldflags && len(info.Vars) > 0 {
-		argv = append(argv, "-ldflags="+ldflagsX(info.Vars))
-	}
-	argv = append(argv, userArgs...)
 
 	fireHook(cmd, root, mods, "pre-"+cmd.Name())
-	results := workspace.RunAcross(context.Background(), mods, argv, workspace.ExecOpts{
+	results := workspace.RunAcross(context.Background(), jobs, workspace.ExecOpts{
 		Parallel:        f.parallel,
 		ContinueOnError: f.continueOnError,
-		Env:             env,
 		Stdout:          cmd.OutOrStdout(),
 		Stderr:          cmd.ErrOrStderr(),
 	})
@@ -83,20 +98,35 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 	return nil
 }
 
-// workspaceEnv is the env applied to every command gw spawns: config env plus
-// extension build-provider env, as sorted KEY=VALUE overrides. It also returns
-// the resolved BuildInfo so callers can reuse its vars/tags. CLI --env layers on
-// top of this (see runArgvAcross).
-func workspaceEnv(root string, cfg workspace.Config, mods []workspace.Module) ([]string, gwext.BuildInfo, error) {
-	info, err := ext.Provide(root, toGwextModules(mods))
+// workspaceEnv is the base env applied to every command gw spawns: config env
+// plus the global build-provider env, as sorted KEY=VALUE overrides. It also
+// returns the full ProvideResult so callers can layer per-module overrides and
+// weave in vars/tags. CLI --env layers on top of this (see runArgvAcross).
+func workspaceEnv(root string, cfg workspace.Config, mods []workspace.Module) ([]string, gwext.ProvideResult, error) {
+	res, err := ext.Provide(root, toGwextModules(mods))
 	if err != nil {
-		return nil, info, err
+		return nil, res, err
 	}
 	cfgEnv, err := workspace.ResolveConfigEnv(root, cfg)
 	if err != nil {
-		return nil, info, err
+		return nil, res, err
 	}
-	return append(cfgEnv, sortedEnv(info.Env)...), info, nil
+	return append(cfgEnv, sortedEnv(res.Env)...), res, nil
+}
+
+// mergeVars combines global and per-module -X vars; per-module wins on conflict.
+func mergeVars(global, each map[string]string) map[string]string {
+	if len(global) == 0 && len(each) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(global)+len(each))
+	for k, v := range global {
+		out[k] = v
+	}
+	for k, v := range each {
+		out[k] = v
+	}
+	return out
 }
 
 // ldflagsX renders provider vars as a `-ldflags` value: -X key=value pairs,

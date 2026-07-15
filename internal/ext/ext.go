@@ -115,33 +115,34 @@ func run(bin string, argv []string, environ []string, stdin io.Reader, stdout, s
 }
 
 // Provide runs the extension's build providers (if any) and returns their merged
-// BuildInfo. It is a no-op returning a zero BuildInfo when no extension exists or
-// none of its providers register. Provider stdout carries the JSON result;
-// provider diagnostics stream to gw's stderr.
-func Provide(root string, mods []gwext.Module) (gwext.BuildInfo, error) {
-	var bi gwext.BuildInfo
+// result: a global BuildInfo plus per-module overrides (from ProvideEach). It is
+// a no-op returning a zero ProvideResult when no extension exists or none of its
+// providers register. Provider stdout carries the JSON result; provider
+// diagnostics stream to gw's stderr.
+func Provide(root string, mods []gwext.Module) (gwext.ProvideResult, error) {
+	var res gwext.ProvideResult
 	if !Exists(root) {
-		return bi, nil
+		return res, nil
 	}
 	m, err := Manifest(root)
 	if err != nil {
-		return bi, err
+		return res, err
 	}
 	if m.Providers == 0 {
-		return bi, nil
+		return res, nil
 	}
 	bin, err := Build(root)
 	if err != nil {
-		return bi, err
+		return res, err
 	}
 	out, err := capture(bin, []string{sentinel, "provide"}, env(root, nil), modulesReader(mods))
 	if err != nil {
-		return bi, fmt.Errorf("running extension providers: %w", err)
+		return res, fmt.Errorf("running extension providers: %w", err)
 	}
-	if err := json.Unmarshal(out, &bi); err != nil {
-		return bi, fmt.Errorf("parsing extension build info: %w", err)
+	if err := json.Unmarshal(out, &res); err != nil {
+		return res, fmt.Errorf("parsing extension build info: %w", err)
 	}
-	return bi, nil
+	return res, nil
 }
 
 // capture runs the extension binary and returns its stdout. Its stderr streams

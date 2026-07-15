@@ -19,12 +19,18 @@ type ExecOpts struct {
 	MaxParallel int
 	// ContinueOnError keeps running remaining modules after one fails (serial only).
 	ContinueOnError bool
-	// Env holds KEY=VALUE overrides layered on top of the ambient environment for
-	// every module command. Nil leaves the child environment inherited as-is.
-	Env []string
 	// Stdout/Stderr receive command output. Defaults to os.Stdout/os.Stderr.
 	Stdout io.Writer
 	Stderr io.Writer
+}
+
+// Job is one module command: the argv to run in the module's directory and the
+// KEY=VALUE environment overrides for it. Per-module jobs let callers vary the
+// command and environment across modules (e.g. per-module build providers).
+type Job struct {
+	Module Module
+	Argv   []string
+	Env    []string // overrides appended to os.Environ(); nil inherits as-is
 }
 
 // ModuleResult is the outcome of running a command in one module.
@@ -40,25 +46,26 @@ func (r ModuleResult) Failed() bool { return r.ExitCode != 0 || r.Err != nil }
 
 var errSkipped = fmt.Errorf("skipped after earlier failure")
 
-// RunAcross runs argv in every module's directory and returns per-module results.
-// In serial mode output streams live; in parallel mode each module's output is
-// buffered and flushed with a header so lines from different modules don't interleave.
-func RunAcross(ctx context.Context, mods []Module, argv []string, opts ExecOpts) []ModuleResult {
+// RunAcross runs each job in its module's directory and returns per-module
+// results. In serial mode output streams live; in parallel mode each module's
+// output is buffered and flushed with a header so lines from different modules
+// don't interleave.
+func RunAcross(ctx context.Context, jobs []Job, opts ExecOpts) []ModuleResult {
 	if opts.Stdout == nil {
 		opts.Stdout = os.Stdout
 	}
 	if opts.Stderr == nil {
 		opts.Stderr = os.Stderr
 	}
-	results := make([]ModuleResult, len(mods))
+	results := make([]ModuleResult, len(jobs))
 
 	if !opts.Parallel {
-		for i, m := range mods {
-			fmt.Fprintf(opts.Stdout, "== %s ==\n", m.Path)
-			results[i] = runOne(ctx, m, argv, opts.Env, opts.Stdout, opts.Stderr)
+		for i, j := range jobs {
+			fmt.Fprintf(opts.Stdout, "== %s ==\n", j.Module.Path)
+			results[i] = runOne(ctx, j, opts.Stdout, opts.Stderr)
 			if results[i].Failed() && !opts.ContinueOnError {
-				for j := i + 1; j < len(mods); j++ {
-					results[j] = ModuleResult{Module: mods[j], ExitCode: -1, Err: errSkipped}
+				for k := i + 1; k < len(jobs); k++ {
+					results[k] = ModuleResult{Module: jobs[k].Module, ExitCode: -1, Err: errSkipped}
 				}
 				break
 			}
@@ -73,35 +80,35 @@ func RunAcross(ctx context.Context, mods []Module, argv []string, opts ExecOpts)
 	sem := make(chan struct{}, limit)
 	var wg sync.WaitGroup
 	var flushMu sync.Mutex
-	for i, m := range mods {
+	for i, j := range jobs {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(i int, m Module) {
+		go func(i int, j Job) {
 			defer wg.Done()
 			defer func() { <-sem }()
 			buf := &syncBuffer{}
-			results[i] = runOne(ctx, m, argv, opts.Env, buf, buf)
+			results[i] = runOne(ctx, j, buf, buf)
 			flushMu.Lock()
-			fmt.Fprintf(opts.Stdout, "== %s ==\n", m.Path)
+			fmt.Fprintf(opts.Stdout, "== %s ==\n", j.Module.Path)
 			_, _ = opts.Stdout.Write(buf.Bytes())
 			flushMu.Unlock()
-		}(i, m)
+		}(i, j)
 	}
 	wg.Wait()
 	return results
 }
 
-func runOne(ctx context.Context, m Module, argv, env []string, stdout, stderr io.Writer) ModuleResult {
+func runOne(ctx context.Context, j Job, stdout, stderr io.Writer) ModuleResult {
 	start := time.Now()
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	cmd.Dir = m.Dir
-	if len(env) > 0 {
-		cmd.Env = append(os.Environ(), env...)
+	cmd := exec.CommandContext(ctx, j.Argv[0], j.Argv[1:]...)
+	cmd.Dir = j.Module.Dir
+	if len(j.Env) > 0 {
+		cmd.Env = append(os.Environ(), j.Env...)
 	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	err := cmd.Run()
-	res := ModuleResult{Module: m, Duration: time.Since(start)}
+	res := ModuleResult{Module: j.Module, Duration: time.Since(start)}
 	if err != nil {
 		res.Err = err
 		if ee, ok := err.(*exec.ExitError); ok {

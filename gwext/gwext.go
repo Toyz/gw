@@ -238,16 +238,47 @@ type BuildInfo struct {
 	Tags []string `json:"tags,omitempty"`
 }
 
+// ProvideResult is the full output of the `provide` verb: the global BuildInfo
+// (embedded, so its env/vars/tags stay at the top level for backward compat)
+// plus per-module overrides keyed by module path, from ProvideEach.
+type ProvideResult struct {
+	BuildInfo
+	Each map[string]BuildInfo `json:"each,omitempty"`
+}
+
+// merge folds src into dst (env/vars maps, tags concatenated).
+func (dst *BuildInfo) merge(src BuildInfo) {
+	for k, v := range src.Env {
+		if dst.Env == nil {
+			dst.Env = map[string]string{}
+		}
+		dst.Env[k] = v
+	}
+	for k, v := range src.Vars {
+		if dst.Vars == nil {
+			dst.Vars = map[string]string{}
+		}
+		dst.Vars[k] = v
+	}
+	dst.Tags = append(dst.Tags, src.Tags...)
+}
+
+// empty reports whether a BuildInfo contributes nothing.
+func (b BuildInfo) empty() bool {
+	return len(b.Env) == 0 && len(b.Vars) == 0 && len(b.Tags) == 0
+}
+
 type commandReg struct {
 	info CommandInfo
 	run  func(*Context) error
 }
 
 var (
-	commands  []commandReg
-	hooks     = map[string][]func(*Context) error{}
-	providers []func(*Context) (BuildInfo, error)
-	hidden    []string
+	commands      []commandReg
+	hooks         = map[string][]func(*Context) error{}
+	providers     []func(*Context) (BuildInfo, error)
+	eachProviders []func(*Context, Module) (BuildInfo, error)
+	hidden        []string
 )
 
 // Command registers a custom subcommand, invocable as `gw <name>`. A name that
@@ -282,6 +313,16 @@ func Hook(event string, run func(*Context) error) {
 // providers may print freely (that output is routed to stderr, not the result).
 func Provide(fn func(*Context) (BuildInfo, error)) {
 	providers = append(providers, fn)
+}
+
+// ProvideEach registers a per-module build provider: gw calls it once for each
+// workspace module and applies the returned BuildInfo to that module alone.
+// Return a zero BuildInfo to contribute nothing for a given module. Use it to
+// scope env/tags/vars to specific modules — e.g. a "server" build tag only on
+// your service modules. Global Provide output still applies to every module;
+// per-module values layer on top of it.
+func ProvideEach(fn func(*Context, Module) (BuildInfo, error)) {
+	eachProviders = append(eachProviders, fn)
 }
 
 // The protocol sentinel keeps gw's calls from colliding with user arguments.
@@ -319,7 +360,7 @@ func Main() {
 }
 
 func emitManifest() {
-	m := Manifest{Providers: len(providers)}
+	m := Manifest{Providers: len(providers) + len(eachProviders)}
 	for _, c := range commands {
 		m.Commands = append(m.Commands, c.info)
 	}
@@ -334,30 +375,44 @@ func emitManifest() {
 	}
 }
 
-// emitProvide runs every registered build provider, merges their BuildInfo, and
-// writes the result as JSON on stdout. Provider stdout is redirected to stderr
-// while they run so a stray print cannot corrupt the JSON result gw reads.
+// emitProvide runs the global providers (merged into ProvideResult.BuildInfo)
+// and the per-module providers (merged into ProvideResult.Each[path]), then
+// writes the result as JSON. Provider stdout is redirected to stderr while they
+// run so a stray print cannot corrupt the JSON result gw reads.
 func emitProvide() {
 	ctx := contextFromEnv()
 	real := os.Stdout
 	os.Stdout = os.Stderr
-	merged := BuildInfo{Env: map[string]string{}, Vars: map[string]string{}}
-	for _, p := range providers {
-		bi, err := p(ctx)
+	failBack := func(err error) {
 		if err != nil {
 			os.Stdout = real
 			fail("gwext: build provider: " + err.Error())
 		}
-		for k, v := range bi.Env {
-			merged.Env[k] = v
-		}
-		for k, v := range bi.Vars {
-			merged.Vars[k] = v
-		}
-		merged.Tags = append(merged.Tags, bi.Tags...)
 	}
+
+	var res ProvideResult
+	for _, p := range providers {
+		bi, err := p(ctx)
+		failBack(err)
+		res.BuildInfo.merge(bi)
+	}
+	if len(eachProviders) > 0 {
+		res.Each = map[string]BuildInfo{}
+		for _, m := range ctx.Modules {
+			var acc BuildInfo
+			for _, pe := range eachProviders {
+				bi, err := pe(ctx, m)
+				failBack(err)
+				acc.merge(bi)
+			}
+			if !acc.empty() {
+				res.Each[m.Path] = acc
+			}
+		}
+	}
+
 	os.Stdout = real
-	if err := json.NewEncoder(os.Stdout).Encode(merged); err != nil {
+	if err := json.NewEncoder(os.Stdout).Encode(res); err != nil {
 		fail("gwext: " + err.Error())
 	}
 }
@@ -413,8 +468,8 @@ func printHuman() {
 	for _, e := range evs {
 		fmt.Printf("  hook     %s\n", e)
 	}
-	if len(providers) > 0 {
-		fmt.Printf("  provider %d build provider(s)\n", len(providers))
+	if n := len(providers) + len(eachProviders); n > 0 {
+		fmt.Printf("  provider %d build provider(s)\n", n)
 	}
 	for _, h := range dedupSorted(hidden) {
 		fmt.Printf("  hides    %s\n", h)
