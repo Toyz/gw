@@ -5,11 +5,18 @@ on:
     branches: [main]
   pull_request:
 
+# Minimal token: PR jobs run untrusted code (`go test` compiles+runs the PR's
+# test files), so they get a read-only token — they can't push, tag, release,
+# or otherwise act on the repo. Cache is branch-scoped by GitHub, so a PR's
+# cache is never restorable from main.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version: stable

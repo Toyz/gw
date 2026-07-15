@@ -5,11 +5,14 @@ name: workspace
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   gw:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # needed for `gw affected --since`
       - uses: actions/setup-go@v5
