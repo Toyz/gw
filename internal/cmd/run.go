@@ -173,24 +173,91 @@ type goCmd struct {
 }
 
 func (gc goCmd) command() *cobra.Command {
-	var f execFlags
-	accept := cobra.ArbitraryArgs
-	if gc.noArgs {
-		accept = cobra.NoArgs
-	}
+	var help execFlags // bound only so gw's flags render in --help
 	cmd := &cobra.Command{
 		Use:   gc.use,
 		Short: gc.short,
-		Args:  accept,
+		// Flag parsing is disabled so go's own flags (-v, -run, -race, -count,
+		// ...) pass straight through; splitExecArgs pulls out gw's flags. A bare
+		// `--` also forces everything after it to reach `go` verbatim.
+		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				args = gc.defArgs
+			if wantsHelp(args) {
+				return cmd.Help()
 			}
-			return runArgvAcross(cmd, f, gc.base, args, gc.inject)
+			f, rest := splitExecArgs(args)
+			if gc.noArgs && len(rest) > 0 {
+				return fmt.Errorf("%q takes no arguments, got %v", cmd.Name(), rest)
+			}
+			if len(rest) == 0 {
+				rest = gc.defArgs
+			}
+			return runArgvAcross(cmd, f, gc.base, rest, gc.inject)
 		},
 	}
-	f.bind(cmd)
+	help.bind(cmd)
 	return cmd
+}
+
+// splitExecArgs separates gw's own flags from everything else (go flags and
+// package patterns), which pass through to the underlying command untouched.
+// A `--` stops gw-flag parsing: the remainder is passed through verbatim.
+func splitExecArgs(args []string) (execFlags, []string) {
+	var f execFlags
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			return f, append(rest, args[i+1:]...)
+		// Persistent -C/--root is not parsed by cobra when flag parsing is
+		// disabled, so consume it here into the global rootFlag (resolveRoot
+		// reads it) instead of leaking it into the go command.
+		case a == "-C" || a == "--root":
+			if i+1 < len(args) {
+				i++
+				rootFlag = args[i]
+			}
+		case strings.HasPrefix(a, "--root="):
+			rootFlag = strings.TrimPrefix(a, "--root=")
+		case strings.HasPrefix(a, "-C="):
+			rootFlag = strings.TrimPrefix(a, "-C=")
+		case a == "-p" || a == "--parallel":
+			f.parallel = true
+		case a == "--continue-on-error":
+			f.continueOnError = true
+		case a == "--env-file":
+			if i+1 < len(args) {
+				i++
+				f.envFiles = append(f.envFiles, args[i])
+			}
+		case strings.HasPrefix(a, "--env-file="):
+			f.envFiles = append(f.envFiles, strings.TrimPrefix(a, "--env-file="))
+		case a == "--env":
+			if i+1 < len(args) {
+				i++
+				f.envVars = append(f.envVars, args[i])
+			}
+		case strings.HasPrefix(a, "--env="):
+			f.envVars = append(f.envVars, strings.TrimPrefix(a, "--env="))
+		default:
+			rest = append(rest, a)
+		}
+	}
+	return f, rest
+}
+
+// wantsHelp reports whether -h/--help appears before any `--` separator.
+func wantsHelp(args []string) bool {
+	for _, a := range args {
+		if a == "--" {
+			return false
+		}
+		if a == "-h" || a == "--help" {
+			return true
+		}
+	}
+	return false
 }
 
 // goCommands are the built-in `go` passthroughs. Add a row to add a command;
