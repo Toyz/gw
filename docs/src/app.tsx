@@ -22,8 +22,8 @@ export class GwSite extends LoomElement {
   @inject(ReleaseService) accessor release!: ReleaseService;
 
   @on(RouteChanged)
-  onRoute() {
-    this.path = currentPath();
+  onRoute(e: RouteChanged) {
+    this.path = e.path;
   }
 
   update() {
