@@ -1,0 +1,34 @@
+:root {
+  --bg: #0a0c0f;
+  --panel: #0f1319;
+  --panel-2: #14181e;
+  --border: #212832;
+  --border-soft: #191e26;
+  --text: #e8edf2;
+  --dim: #8b949e;
+  --amber: #e3a44f;
+  --green: #5fcf90;
+  --teal: #63c8cf;
+  --violet: #b492f0;
+  --cyan: #6ab0f2;
+  --rose: #ec8aa0;
+  --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+/* Design tokens live on :root so they inherit into every component's shadow
+   DOM; component styles are scoped with @styles(base, ...). */
+* {
+  box-sizing: border-box;
+}
+html {
+  background: var(--bg);
+}
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.6;
+  font-size: 16px;
+}

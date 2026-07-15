@@ -1,3 +1,6 @@
+export const REPO = "https://github.com/toyz/gw";
+export const INSTALL = "go install github.com/toyz/gw@latest";
+
 export interface Feature {
   icon: string;
   title: string;
