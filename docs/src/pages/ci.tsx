@@ -2,6 +2,7 @@ import { LoomElement, component, styles, css } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
 import { base } from "../styles";
 import { yamlLines } from "../highlight";
+import { latestVersion, bindVersion } from "../store";
 
 const MINIMAL = `- uses: actions/setup-go@v5
   with: { go-version: stable }
@@ -21,26 +22,32 @@ const SYNC = `- uses: toyz/gw@v0
   with:
     command: sync --check   # fail if go.work is stale`;
 
-const INPUTS = [
-  {
-    name: "command",
-    icon: "terminal",
-    default: "doctor --strict",
-    desc: "The gw subcommand(s) and flags to run — sync --check, lint, affected --since main, …",
-  },
-  {
-    name: "version",
-    icon: "git-branch",
-    default: "latest",
-    desc: "gw version to install: a module tag (v0.2.0), a branch, or latest.",
-  },
-  {
-    name: "working-directory",
-    icon: "package",
-    default: ".",
-    desc: "Directory to run gw in — your workspace root.",
-  },
-];
+// inputs builds the action's input cards. The version example is interpolated
+// from the live release tag (shared store) rather than hardcoded — so it's
+// always current, and simply omits the parenthetical until the tag resolves.
+function inputs(tag: string) {
+  const example = tag ? ` (${tag})` : "";
+  return [
+    {
+      name: "command",
+      icon: "terminal",
+      default: "doctor --strict",
+      desc: "The gw subcommand(s) and flags to run — sync --check, lint, affected --since main, …",
+    },
+    {
+      name: "version",
+      icon: "git-branch",
+      default: "latest",
+      desc: `gw version to install: a module tag${example}, a branch, or latest.`,
+    },
+    {
+      name: "working-directory",
+      icon: "package",
+      default: ".",
+      desc: "Directory to run gw in — your workspace root.",
+    },
+  ];
+}
 
 function codeWin(title: string, src: string) {
   return (
@@ -246,7 +253,14 @@ const ciStyles = css`
 @component("page-ci")
 @styles(base, ciStyles)
 export class PageCI extends LoomElement {
+  // Re-render when the shared release tag lands, so the version example is
+  // always the current release — never hardcoded.
+  firstUpdated() {
+    bindVersion(this);
+  }
+
   update() {
+    const rows = inputs(latestVersion.value);
     return (
       <div class="wrap">
         <div class="hero">
@@ -276,7 +290,7 @@ export class PageCI extends LoomElement {
             <loom-icon name="layers" size={14} /> Inputs
           </div>
           <div class="inputs">
-            {INPUTS.map((i) => (
+            {rows.map((i) => (
               <div class="input">
                 <div class="input-top">
                   <span class="ichip">
