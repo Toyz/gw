@@ -124,6 +124,52 @@ func (g *Graph) TransitiveDependents(seeds []string) []string {
 	return out
 }
 
+// TopoOrder returns member paths in dependency order: a module appears only
+// after every workspace module it depends on (so it's a safe release sequence —
+// tag a dependency before the modules that require it). Ties break by path for
+// determinism. Any members left over by a cycle (which go.work forbids) are
+// appended in path order.
+func (g *Graph) TopoOrder() []string {
+	indeg := make(map[string]int, len(g.Modules))
+	for _, m := range g.Modules {
+		indeg[m.Path] = len(g.deps[m.Path])
+	}
+	var queue []string
+	for _, m := range g.Modules {
+		if indeg[m.Path] == 0 {
+			queue = append(queue, m.Path)
+		}
+	}
+	sort.Strings(queue)
+	var order []string
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		order = append(order, cur)
+		var next []string
+		for _, d := range g.dependents[cur] {
+			indeg[d]--
+			if indeg[d] == 0 {
+				next = append(next, d)
+			}
+		}
+		sort.Strings(next)
+		queue = append(queue, next...)
+	}
+	if len(order) < len(g.Modules) {
+		seen := make(map[string]bool, len(order))
+		for _, p := range order {
+			seen[p] = true
+		}
+		for _, m := range g.Modules {
+			if !seen[m.Path] {
+				order = append(order, m.Path)
+			}
+		}
+	}
+	return order
+}
+
 // Edges returns every A->B dependency edge, sorted by (from, to).
 func (g *Graph) Edges() [][2]string {
 	var edges [][2]string

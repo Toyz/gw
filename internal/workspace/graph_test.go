@@ -42,6 +42,37 @@ func TestGraphTransitiveDependents(t *testing.T) {
 	}
 }
 
+func TestGraphTopoOrder(t *testing.T) {
+	// core <- api <- gateway ; core <- worker ; unrelated stands alone.
+	mods := []Module{
+		mod("example.com/core"),
+		mod("example.com/api", "example.com/core"),
+		mod("example.com/gateway", "example.com/api"),
+		mod("example.com/worker", "example.com/core"),
+		mod("example.com/unrelated"),
+	}
+	g := BuildGraph(mods)
+	order := g.TopoOrder()
+
+	if len(order) != len(mods) {
+		t.Fatalf("TopoOrder returned %d modules, want %d: %v", len(order), len(mods), order)
+	}
+	pos := map[string]int{}
+	for i, p := range order {
+		pos[p] = i
+	}
+	// The release contract: a module must never appear before something it
+	// depends on (you tag the dependency first).
+	for _, m := range mods {
+		for _, dep := range g.Dependencies(m.Path) {
+			if pos[dep] > pos[m.Path] {
+				t.Fatalf("%s (pos %d) ordered before its dependency %s (pos %d): %v",
+					m.Path, pos[m.Path], dep, pos[dep], order)
+			}
+		}
+	}
+}
+
 func TestOwningModule(t *testing.T) {
 	mods := []Module{
 		{Path: "a", Dir: "/ws/a"},

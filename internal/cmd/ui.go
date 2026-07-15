@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -22,6 +23,14 @@ func newPrinter(cmd *cobra.Command) *printer {
 
 // printf writes formatted output to stdout.
 func (p *printer) printf(format string, a ...any) { fmt.Fprintf(p.out, format, a...) }
+
+// json writes v to stdout as indented JSON — the shared path for every
+// command's --json output.
+func (p *printer) json(v any) error {
+	enc := json.NewEncoder(p.out)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
+}
 
 // println writes a line to stdout.
 func (p *printer) println(a ...any) { fmt.Fprintln(p.out, a...) }

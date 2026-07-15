@@ -49,6 +49,7 @@ func newRootCmd() *cobra.Command {
 		newRemoveCmd(),
 		newGraphCmd(),
 		newAffectedCmd(),
+		newVerifyCmd(),
 		newDoctorCmd(),
 		newExtCmd(),
 	)
@@ -86,6 +87,16 @@ func resolveRoot() (string, error) {
 		return root, nil
 	}
 	return cwd, nil
+}
+
+// gitRootFor resolves the repository top level for the workspace root, wrapping
+// the "no git" case in a consistent error. Used by commands that diff or tag.
+func gitRootFor(root string) (string, error) {
+	gitRoot, err := workspace.GitRoot(root)
+	if err != nil {
+		return "", fmt.Errorf("not a git repository (or git unavailable): %w", err)
+	}
+	return gitRoot, nil
 }
 
 // loadWorkspace resolves the root, loads config, and discovers modules.

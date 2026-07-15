@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -40,9 +39,7 @@ func newListCmd() *cobra.Command {
 						GoVersion: m.GoVersion, Toolchain: m.Toolchain, Requires: m.Requires,
 					})
 				}
-				enc := json.NewEncoder(p.Out())
-				enc.SetIndent("", "  ")
-				return enc.Encode(list)
+				return p.json(list)
 			}
 
 			for _, m := range mods {

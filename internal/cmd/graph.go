@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
-
 	"github.com/spf13/cobra"
 	"github.com/toyz/gw/internal/workspace"
 )
@@ -51,9 +49,7 @@ func newGraphCmd() *cobra.Command {
 						Dependents: g.Dependents(m.Path),
 					})
 				}
-				enc := json.NewEncoder(p.Out())
-				enc.SetIndent("", "  ")
-				return enc.Encode(nodes)
+				return p.json(nodes)
 
 			default:
 				for _, m := range g.Modules {

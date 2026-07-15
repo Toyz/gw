@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -30,9 +29,9 @@ func newAffectedCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			gitRoot, err := workspace.GitRoot(root)
+			gitRoot, err := gitRootFor(root)
 			if err != nil {
-				return fmt.Errorf("not a git repository (or git unavailable): %w", err)
+				return err
 			}
 			changed, err := workspace.ChangedFiles(gitRoot, since)
 			if err != nil {
@@ -49,9 +48,7 @@ func newAffectedCmd() *cobra.Command {
 			p := newPrinter(cmd)
 
 			if asJSON {
-				enc := json.NewEncoder(p.Out())
-				enc.SetIndent("", "  ")
-				return enc.Encode(map[string][]string{"seeds": seeds, "impacted": impacted})
+				return p.json(map[string][]string{"seeds": seeds, "impacted": impacted})
 			}
 
 			for _, mp := range result {

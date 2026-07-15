@@ -37,9 +37,9 @@ func WorkFileExists(root string) bool {
 	return err == nil
 }
 
-// usePath returns the go.work `use` path for a module dir relative to root,
+// UsePath returns the go.work `use` path for a module dir relative to root,
 // always slash-separated and prefixed with "./" (or "." for the root itself).
-func usePath(root, dir string) string {
+func UsePath(root, dir string) string {
 	rel, err := filepath.Rel(root, dir)
 	if err != nil {
 		rel = dir
@@ -51,17 +51,13 @@ func usePath(root, dir string) string {
 	return "./" + rel
 }
 
-// UsePath returns the go.work `use` value for dir relative to root (exported for
-// commands that add/remove a single module).
-func UsePath(root, dir string) string { return usePath(root, dir) }
-
 // SetUseSet rewrites wf's `use` directives to exactly the given modules,
 // preserving all other blocks (go, toolchain, replace, godebug). It returns the
 // use paths added and removed relative to wf's previous state, both sorted.
 func SetUseSet(wf *modfile.WorkFile, root string, mods []Module) (added, removed []string) {
 	want := make(map[string]string, len(mods))
 	for _, m := range mods {
-		want[usePath(root, m.Dir)] = m.Path
+		want[UsePath(root, m.Dir)] = m.Path
 	}
 	have := make(map[string]bool, len(wf.Use))
 	var existing []string
