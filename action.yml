@@ -1,4 +1,4 @@
-name: gw
+name: "gw - Go workspaces"
 description: Run gw to validate a Go workspace (go.work) in CI.
 branding:
   icon: check-circle
