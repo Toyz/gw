@@ -2,7 +2,7 @@ import { LoomElement } from "@toyz/loom";
 import { Reactive, SessionAdapter } from "@toyz/loom/store";
 import { SLUG } from "./data";
 
-// latestVersion — the current release tag (e.g. "v0.1.1"), shared across every
+// latestVersion — the current release tag (e.g. "v0.2.0"), shared across every
 // view. One source of truth every component subscribes to via bindVersion().
 //
 // It's persisted (the persist options are right here) to sessionStorage, so on

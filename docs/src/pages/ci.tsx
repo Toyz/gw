@@ -32,7 +32,7 @@ const INPUTS = [
     name: "version",
     icon: "git-branch",
     default: "latest",
-    desc: "gw version to install: a module tag (v0.1.1), a branch, or latest.",
+    desc: "gw version to install: a module tag (v0.2.0), a branch, or latest.",
   },
   {
     name: "working-directory",
