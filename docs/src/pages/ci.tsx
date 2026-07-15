@@ -24,18 +24,21 @@ const SYNC = `- uses: toyz/gw@v0
 const INPUTS = [
   {
     name: "command",
-    def: 'default: "doctor --strict"',
-    desc: "The gw subcommand(s) and flags to run — e.g. sync --check, lint, or affected --since main.",
+    icon: "terminal",
+    default: "doctor --strict",
+    desc: "The gw subcommand(s) and flags to run — sync --check, lint, affected --since main, …",
   },
   {
     name: "version",
-    def: 'default: "latest"',
-    desc: "gw version to install: a module version/tag (v0.1.1), a branch, or latest.",
+    icon: "git-branch",
+    default: "latest",
+    desc: "gw version to install: a module tag (v0.1.1), a branch, or latest.",
   },
   {
     name: "working-directory",
-    def: 'default: "."',
-    desc: "Directory to run gw in — the workspace root.",
+    icon: "package",
+    default: ".",
+    desc: "Directory to run gw in — your workspace root.",
   },
 ];
 
@@ -113,36 +116,97 @@ const ciStyles = css`
   }
 
   .inputs {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+  @media (max-width: 760px) {
+    .inputs {
+      grid-template-columns: 1fr;
+    }
   }
   .input {
-    padding: 0.9rem 0;
-    border-top: 1px solid var(--border-soft);
-  }
-  .input:first-child {
-    border-top: none;
-  }
-  .input .head {
     display: flex;
-    align-items: baseline;
-    gap: 0.7rem;
-    flex-wrap: wrap;
+    flex-direction: column;
+    padding: 1.4rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.014), transparent);
+    transition: border-color 0.2s, transform 0.2s;
   }
-  .input code {
+  .input:hover {
+    border-color: var(--border);
+    transform: translateY(-2px);
+  }
+  .input-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .ichip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--c) 15%, transparent);
+    color: var(--c);
+    border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  }
+  .input:nth-child(1) .ichip {
+    --c: var(--amber);
+  }
+  .input:nth-child(2) .ichip {
+    --c: var(--teal);
+  }
+  .input:nth-child(3) .ichip {
+    --c: var(--violet);
+  }
+  .opt {
     font-family: var(--mono);
-    font-size: 0.9rem;
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.12rem 0.42rem;
+  }
+  .iname {
+    font-family: var(--mono);
+    font-size: 0.98rem;
     color: var(--amber);
   }
-  .input .def {
+  .idefault {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.7rem 0 0.95rem;
+  }
+  .idefault .dlabel {
     font-family: var(--mono);
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--dim);
   }
+  .idefault code {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--teal);
+    background: var(--panel-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 0.15rem 0.45rem;
+    white-space: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+  }
   .input p {
-    margin: 0.3rem 0 0;
+    margin: 0;
     color: var(--dim);
-    font-size: 0.9rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
   }
 
   .recipe {
@@ -214,9 +278,16 @@ export class PageCI extends LoomElement {
           <div class="inputs">
             {INPUTS.map((i) => (
               <div class="input">
-                <div class="head">
-                  <code>{i.name}</code>
-                  <span class="def">{i.def}</span>
+                <div class="input-top">
+                  <span class="ichip">
+                    <loom-icon name={i.icon} size={17} color="currentColor" />
+                  </span>
+                  <span class="opt">optional</span>
+                </div>
+                <code class="iname">{i.name}</code>
+                <div class="idefault">
+                  <span class="dlabel">default</span>
+                  <code>{i.default}</code>
                 </div>
                 <p>{i.desc}</p>
               </div>
