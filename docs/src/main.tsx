@@ -8,6 +8,7 @@ import { LoomRouter } from "@toyz/loom/router";
 import "./app"; // shell
 import "./pages/home";
 import "./pages/extensions";
+import "./pages/ci";
 
 const router = new LoomRouter({ mode: "hash" });
 app.use(router);

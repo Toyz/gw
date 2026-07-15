@@ -32,3 +32,24 @@ export function hlGo(line: string) {
 export function codeLines(src: string) {
   return src.split("\n").map((line) => <div class="cl">{hlGo(line)}</div>);
 }
+
+// hlYaml colors YAML: keys (`.yk`) and comments (`.cm`); values stay plain.
+export function hlYaml(line: string) {
+  const hi = line.indexOf("#");
+  const hasComment = hi >= 0 && (hi === 0 || line[hi - 1] === " ");
+  const code = hasComment ? line.slice(0, hi) : line;
+  const comment = hasComment ? line.slice(hi) : "";
+  const out: unknown[] = [];
+  const m = code.match(/^(\s*(?:- )?)([\w.-]+)(:)(.*)$/);
+  if (m) {
+    out.push(m[1], <span class="yk">{m[2]}</span>, <span class="pu">{m[3]}</span>, m[4]);
+  } else {
+    out.push(code || " ");
+  }
+  if (comment) out.push(<span class="cm">{comment}</span>);
+  return out;
+}
+
+export function yamlLines(src: string) {
+  return src.split("\n").map((line) => <div class="cl">{hlYaml(line)}</div>);
+}

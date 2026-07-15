@@ -22,7 +22,9 @@ export class GwSite extends LoomElement {
         <header>
           <div class="wrap header-in">
             <loom-link to="/" class="logo">
-              <loom-icon name="git-branch" size={18} /> gw
+              <loom-icon name="git-branch" size={18} />
+              <b>gw</b>
+              <span class="tag">go.work manager</span>
             </loom-link>
             <div class="nav">
               <loom-link to="/" class={active("/")}>
@@ -30,6 +32,9 @@ export class GwSite extends LoomElement {
               </loom-link>
               <loom-link to="/extensions" class={active("/extensions")}>
                 Extensions
+              </loom-link>
+              <loom-link to="/ci" class={active("/ci")}>
+                CI
               </loom-link>
               <a class="gh" href={REPO}>
                 <loom-icon name="github" size={16} /> GitHub

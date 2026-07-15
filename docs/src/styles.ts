@@ -43,13 +43,31 @@ export const base = css`
     align-items: center;
     gap: 0.5rem;
     font-family: var(--mono);
-    font-weight: 700;
-    font-size: 1.05rem;
-    letter-spacing: -0.02em;
     color: var(--text);
   }
   .logo loom-icon {
     color: var(--amber);
+  }
+  .logo b {
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -0.02em;
+  }
+  .logo .tag {
+    font-family: var(--sans);
+    font-weight: 400;
+    font-size: 0.82rem;
+    color: var(--dim);
+  }
+  .logo .tag::before {
+    content: "/";
+    margin-right: 0.5rem;
+    color: var(--border);
+  }
+  @media (max-width: 560px) {
+    .logo .tag {
+      display: none;
+    }
   }
   .nav {
     display: flex;
@@ -222,5 +240,8 @@ export const base = css`
   }
   .win-body .pu {
     color: #7f8a95;
+  }
+  .win-body .yk {
+    color: var(--teal);
   }
 `;
