@@ -145,6 +145,13 @@ func newExtListCmd() *cobra.Command {
 					kind = "override"
 				}
 				p.printf("%s  %-16s %s\n", kind, c.Name, c.Short)
+				for _, fl := range c.Flags {
+					def := ""
+					if fl.Def != "" && fl.Def != "false" {
+						def = " [" + fl.Def + "]"
+					}
+					p.printf("           --%s  %s%s\n", fl.Name, fl.Help, def)
+				}
 			}
 			for _, h := range m.Hooks {
 				p.printf("hook     %s\n", h)

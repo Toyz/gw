@@ -247,6 +247,13 @@ export class PageExtensions extends LoomElement {
                 <code>.Build() .Test() .Run() .Vet() .Generate() .Tidy()</code>,
                 plus <code>.Tool(bin)</code> for anything else.
               </p>
+              <p>
+                Declare <b>typed flags</b> with{" "}
+                <code>gwext.Str/Bool/Int</code> after the handler — gw parses
+                them and you read <code>c.String("name")</code>,{" "}
+                <code>c.Bool(...)</code>, <code>c.Int(...)</code>. They show up in{" "}
+                <code>gw &lt;cmd&gt; --help</code> and <code>gw ext list</code>.
+              </p>
             </div>
             {codeWin(".gw/build.go", CMD_SAMPLE)}
           </div>

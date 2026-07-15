@@ -151,6 +151,18 @@ func main() {
 - `c.Go(dir, args...)`, `c.Run(dir, bin, args...)`, `c.Start(...)` for root-level or
   arbitrary directories.
 
+**Typed command flags:** declare flags with `gwext.Str/Bool/Int` after the
+handler. gw parses them from the user's args (the handler reads typed values via
+`c.String/c.Bool/c.Int`, with leftover positionals in `c.Args`), and they show up
+in `gw <cmd> --help` and `gw ext list`:
+
+```go
+gwext.Command("hello", "greet someone", func(c *gwext.Context) error {
+	fmt.Println("hello", c.String("name"))
+	return nil
+}, gwext.Str("name", "world", "who to greet"), gwext.Bool("loud", "shout"))
+```
+
 **Build providers** (`gwext.Provide`) let an extension *compute* environment and
 Go build settings at run time — gw's analogue of a Cargo build script emitting
 `cargo::rustc-env` / `rustc-cfg`. Prebuilt providers ship in `gwext`, so common

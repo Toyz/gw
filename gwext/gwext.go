@@ -48,6 +48,8 @@ type Context struct {
 	Modules []Module
 	Args    []string
 	Event   string
+
+	flags map[string]any // parsed typed flags (see Command flags / c.String etc.)
 }
 
 // Module returns the workspace module with the given path (and ok=false if none).
@@ -119,6 +121,7 @@ type CommandInfo struct {
 	Name     string `json:"name"`
 	Short    string `json:"short"`
 	Override bool   `json:"override,omitempty"`
+	Flags    []Flag `json:"flags,omitempty"`
 }
 
 // Manifest is what gw reads to learn an extension's commands, hooks, build
@@ -175,8 +178,9 @@ func (b BuildInfo) empty() bool {
 }
 
 type commandReg struct {
-	info CommandInfo
-	run  func(*Context) error
+	info  CommandInfo
+	run   func(*Context) error
+	flags []Flag
 }
 
 var (
@@ -189,15 +193,17 @@ var (
 
 // Command registers a custom subcommand, invocable as `gw <name>`. A name that
 // collides with a builtin is ignored by gw; use Override to replace a builtin.
-func Command(name, short string, run func(*Context) error) {
-	commands = append(commands, commandReg{CommandInfo{Name: name, Short: short}, run})
+// Optional typed flags are declared with Str/Bool/Int; gw parses them from the
+// user's args and the handler reads them via c.String/c.Bool/c.Int.
+func Command(name, short string, run func(*Context) error, flags ...Flag) {
+	commands = append(commands, commandReg{CommandInfo{Name: name, Short: short, Flags: flags}, run, flags})
 }
 
 // Override registers a subcommand that intentionally replaces the builtin of the
 // same name (e.g. to wrap `gw test` with setup/teardown). Unlike Command, gw
 // removes the shadowed builtin instead of skipping the extension command.
-func Override(name, short string, run func(*Context) error) {
-	commands = append(commands, commandReg{CommandInfo{Name: name, Short: short, Override: true}, run})
+func Override(name, short string, run func(*Context) error, flags ...Flag) {
+	commands = append(commands, commandReg{CommandInfo{Name: name, Short: short, Override: true, Flags: flags}, run, flags})
 }
 
 // Hide removes the named builtin commands from gw's command tree for this
@@ -328,6 +334,9 @@ func runCommand(name string, userArgs []string) {
 		if c.info.Name == name {
 			ctx := contextFromEnv()
 			ctx.Args = userArgs
+			if len(c.flags) > 0 {
+				ctx.flags, ctx.Args = parseFlags(name, c.flags, userArgs)
+			}
 			if err := c.run(ctx); err != nil {
 				fail("gw " + name + ": " + err.Error())
 			}
