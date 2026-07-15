@@ -1,10 +1,17 @@
-import { LoomElement, component, styles, reactive, css } from "@toyz/loom";
+import {
+  LoomElement,
+  component,
+  css,
+  inject,
+  reactive,
+  styles,
+} from "@toyz/loom";
 import { clipboard } from "@toyz/loom/element";
 import { route } from "@toyz/loom/router";
-import { base } from "../styles";
+import { COMMAND_GROUPS, FEATURES, INSTALL, REPO, SESSION } from "../data";
 import { codeLines } from "../highlight";
-import { FEATURES, COMMAND_GROUPS, SESSION, INSTALL, REPO } from "../data";
-import { latestVersion, bindVersion } from "../store";
+import { ReleaseService } from "../release";
+import { base } from "../styles";
 
 const EXT_SAMPLE = `import "github.com/toyz/gw/gwext"
 
@@ -114,7 +121,9 @@ const homeStyles = css`
     padding: 0.35rem 0.6rem;
     font-size: 0.78rem;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition:
+      color 0.15s,
+      border-color 0.15s;
     font-family: inherit;
   }
   .cp:hover {
@@ -168,8 +177,14 @@ const homeStyles = css`
     padding: 1.5rem;
     border: 1px solid var(--border-soft);
     border-radius: 12px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.014), transparent);
-    transition: border-color 0.2s, transform 0.2s;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.014),
+      transparent
+    );
+    transition:
+      border-color 0.2s,
+      transform 0.2s;
   }
   .feat:hover {
     border-color: var(--border);
@@ -220,7 +235,11 @@ const homeStyles = css`
   .panel {
     border: 1px solid var(--border);
     border-radius: 14px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.012),
+      transparent
+    );
     padding: 2rem 2.2rem;
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -298,11 +317,7 @@ const homeStyles = css`
 @styles(base, homeStyles)
 export class PageHome extends LoomElement {
   @reactive accessor copied = false;
-
-  // Re-render the hero's release badge when the shared version store lands.
-  firstUpdated() {
-    bindVersion(this);
-  }
+  @inject(ReleaseService) accessor release!: ReleaseService;
 
   @clipboard("write")
   copyInstall() {
@@ -312,7 +327,7 @@ export class PageHome extends LoomElement {
   }
 
   update() {
-    const version = latestVersion.value;
+    const version = this.release.tag.value;
     return (
       <div class="wrap">
         <div class="hero">
@@ -379,7 +394,7 @@ export class PageHome extends LoomElement {
                   </div>
                 ) : (
                   <div class={"ln " + l.kind}>{l.text}</div>
-                )
+                ),
               )}
               <div class="ln prompt">
                 <span class="p">$ </span>

@@ -1,8 +1,8 @@
-import { LoomElement, component, styles, css } from "@toyz/loom";
+import { LoomElement, component, css, inject, styles } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
-import { base } from "../styles";
 import { yamlLines } from "../highlight";
-import { latestVersion, bindVersion } from "../store";
+import { ReleaseService } from "../release";
+import { base } from "../styles";
 
 const MINIMAL = `- uses: actions/setup-go@v5
   with: { go-version: stable }
@@ -138,8 +138,14 @@ const ciStyles = css`
     padding: 1.4rem;
     border: 1px solid var(--border-soft);
     border-radius: 12px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.014), transparent);
-    transition: border-color 0.2s, transform 0.2s;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.014),
+      transparent
+    );
+    transition:
+      border-color 0.2s,
+      transform 0.2s;
   }
   .input:hover {
     border-color: var(--border);
@@ -253,14 +259,10 @@ const ciStyles = css`
 @component("page-ci")
 @styles(base, ciStyles)
 export class PageCI extends LoomElement {
-  // Re-render when the shared release tag lands, so the version example is
-  // always the current release — never hardcoded.
-  firstUpdated() {
-    bindVersion(this);
-  }
+  @inject(ReleaseService) accessor release!: ReleaseService;
 
   update() {
-    const rows = inputs(latestVersion.value);
+    const rows = inputs(this.release.tag.value);
     return (
       <div class="wrap">
         <div class="hero">
@@ -272,10 +274,10 @@ export class PageCI extends LoomElement {
               Run gw in <em>CI</em>.
             </h1>
             <p class="lead">
-              A composite action — install <code>gw</code> and run any subcommand
-              in one step. Default is <code>doctor --strict</code>: fail the build
-              on a stale <code>go.work</code>, version drift, or un-hoisted
-              replaces.
+              A composite action — install <code>gw</code> and run any
+              subcommand in one step. Default is <code>doctor --strict</code>:
+              fail the build on a stale <code>go.work</code>, version drift, or
+              un-hoisted replaces.
             </p>
             <span class="badge">
               <loom-icon name="check" size={13} color="var(--green)" /> on the

@@ -5,6 +5,7 @@ import "./icons"; // registers our glyph set
 import { app } from "@toyz/loom";
 import { LoomRouter } from "@toyz/loom/router";
 
+import { ReleaseService } from "./release";
 import "./app"; // shell
 import "./pages/home";
 import "./pages/extensions";
@@ -12,4 +13,5 @@ import "./pages/ci";
 
 const router = new LoomRouter({ mode: "hash" });
 app.use(router);
+app.use(new ReleaseService()); // LoomLifecycle.start() runs on app.start()
 app.start();

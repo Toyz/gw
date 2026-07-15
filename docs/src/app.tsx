@@ -1,21 +1,25 @@
-import { LoomElement, component, styles, reactive, on } from "@toyz/loom";
-import { RouteChanged } from "@toyz/loom/router";
+import {
+  LoomElement,
+  component,
+  inject,
+  on,
+  reactive,
+  styles,
+} from "@toyz/loom";
 import "@toyz/loom/router"; // registers <loom-outlet> and <loom-link>
-import { base } from "./styles";
+import { RouteChanged } from "@toyz/loom/router";
 import { REPO } from "./data";
-import { latestVersion, bindVersion } from "./store";
+import { ReleaseService } from "./release";
+import { base } from "./styles";
 
 // Shell: sticky header with route-aware nav, the routed outlet, and a footer.
 @component("gw-site")
 @styles(base)
 export class GwSite extends LoomElement {
   @reactive accessor path = currentPath();
-
-  // Subscribe to the shared release store (and kick off the one-per-session
-  // fetch). When the tag lands, the header pill re-renders.
-  firstUpdated() {
-    bindVersion(this);
-  }
+  // Singleton service; its start() ran (and awaited the fetch) before this
+  // component ever rendered, so tag.value is already populated below.
+  @inject(ReleaseService) accessor release!: ReleaseService;
 
   @on(RouteChanged)
   onRoute() {
@@ -24,7 +28,7 @@ export class GwSite extends LoomElement {
 
   update() {
     const active = (to: string) => (this.path === to ? "active" : "");
-    const version = latestVersion.value;
+    const version = this.release.tag.value;
     return (
       <div>
         <header>
