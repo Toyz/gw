@@ -151,15 +151,24 @@ func main() {
 
 **Build providers** (`gwext.Provide`) let an extension *compute* environment and
 Go build settings at run time — gw's analogue of a Cargo build script emitting
-`cargo::rustc-env` / `rustc-cfg`:
+`cargo::rustc-env` / `rustc-cfg`. Prebuilt providers ship in `gwext`, so common
+needs are one line — e.g. stamp the git SHA into your binary for free:
+
+```go
+gwext.Provide(gwext.GitStamp("example.com/app/version")) // -ldflags -X the commit/branch/tag/time
+gwext.Provide(gwext.GitEnv())                            // export GW_GIT_COMMIT, GW_GIT_BRANCH, ...
+```
+
+`GitStamp` fills string vars in the named package (`Commit`, `Short`, `Branch`,
+`Tag`, `Time`, `Dirty`); because `-X` only affects the module that links that
+package, the stamp lands there alone. Roll your own for anything else:
 
 ```go
 gwext.Provide(func(c *gwext.Context) (gwext.BuildInfo, error) {
-	sha := gitSHA() // or read a vault, derive a port, ...
 	return gwext.BuildInfo{
-		Env:  map[string]string{"BUILD_SHA": sha}, // process env for every command
-		Vars: map[string]string{"example.com/app/version.Commit": sha}, // -ldflags -X (build/test)
-		Tags: []string{"production"},              // build tags (build/test/vet)
+		Env:  map[string]string{"PORT": derivePort(c)},          // process env for every command
+		Vars: map[string]string{"example.com/app/build.User": me}, // -ldflags -X (build/test)
+		Tags: []string{"production"},                            // build tags (build/test/vet)
 	}, nil
 })
 ```
@@ -167,7 +176,7 @@ gwext.Provide(func(c *gwext.Context) (gwext.BuildInfo, error) {
 `Env` layers into every command between config and `--env` (so `--env` still
 wins). `Vars` become `-ldflags "-X key=value"` and `Tags` become `-tags` on the
 compiling commands. Providers may print freely — that goes to stderr, never the
-result.
+result. `gwext.Git(dir)` returns the raw `GitInfo` if you want to build your own.
 
 **Overriding builtins:** a plain `gwext.Command` whose name collides with a
 builtin is ignored (builtins win). To *replace* one — e.g. wrap `gw test` with
