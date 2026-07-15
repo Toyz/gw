@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 	"github.com/toyz/gw/internal/workspace"
@@ -12,6 +13,17 @@ import (
 
 // version is overridable at build time via -ldflags "-X ...cmd.version=...".
 var version = "dev"
+
+func init() {
+	// Report the module version from build info: an exact tag for
+	// `go install ...@v1.2.3`, or a VCS pseudo-version (commit + dirty) for an
+	// in-repo build. Falls back to "dev" only when no build info is available.
+	if version == "dev" {
+		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+			version = bi.Main.Version
+		}
+	}
+}
 
 // rootFlag holds the -C/--root value; empty means auto-detect.
 var rootFlag string
