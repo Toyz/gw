@@ -20,6 +20,7 @@ func newInitCmd() *cobra.Command {
 			"overwrite an existing go.work unless --force is given.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			p := newPrinter(cmd)
 			root, _, mods, err := loadWorkspace()
 			if err != nil {
 				return err
@@ -39,16 +40,15 @@ func newInitCmd() *cobra.Command {
 			mutated, warnings := workspace.HoistReplaces(root, wf, mods)
 
 			for _, w := range warnings {
-				fmt.Fprintln(cmd.OutOrStderr(), "warning:", w)
+				p.warnf("%s", w)
 			}
 
 			if dryRun {
-				out := cmd.OutOrStdout()
-				fmt.Fprintf(out, "# %s (dry run)\n", workspace.WorkFileName)
-				out.Write(workspace.FormatWorkFile(wf))
-				fmt.Fprintf(out, "\n%d module(s), %d go.mod file(s) would change:\n", len(mods), len(mutated))
+				p.printf("# %s (dry run)\n", workspace.WorkFileName)
+				p.Out().Write(workspace.FormatWorkFile(wf))
+				p.printf("\n%d module(s), %d go.mod file(s) would change:\n", len(mods), len(mutated))
 				for _, m := range mutated {
-					fmt.Fprintf(out, "  %s\n", m.Path)
+					p.printf("  %s\n", m.Path)
 				}
 				return nil
 			}
@@ -61,7 +61,7 @@ func newInitCmd() *cobra.Command {
 					return fmt.Errorf("rewriting %s go.mod: %w", m.Path, err)
 				}
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s: %d module(s), hoisted replaces from %d go.mod file(s)\n",
+			p.printf("wrote %s: %d module(s), hoisted replaces from %d go.mod file(s)\n",
 				workspace.WorkFileName, len(mods), len(mutated))
 			return nil
 		},

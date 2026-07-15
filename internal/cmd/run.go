@@ -83,14 +83,15 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 		jobs[i] = workspace.Job{Module: m, Argv: argv, Env: env}
 	}
 
+	p := newPrinter(cmd)
 	fireHook(cmd, root, mods, "pre-"+cmd.Name())
 	results := workspace.RunAcross(context.Background(), jobs, workspace.ExecOpts{
 		Parallel:        f.parallel,
 		ContinueOnError: f.continueOnError,
-		Stdout:          cmd.OutOrStdout(),
-		Stderr:          cmd.ErrOrStderr(),
+		Stdout:          p.Out(),
+		Stderr:          p.Err(),
 	})
-	workspace.PrintSummary(cmd.OutOrStdout(), results)
+	workspace.PrintSummary(p.Out(), results)
 	fireHook(cmd, root, mods, "post-"+cmd.Name())
 	if code := workspace.WorstExit(results); code != 0 {
 		os.Exit(code)

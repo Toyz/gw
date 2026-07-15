@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/toyz/gw/internal/workspace"
@@ -24,19 +23,19 @@ func newGraphCmd() *cobra.Command {
 				return err
 			}
 			g := workspace.BuildGraph(mods)
-			out := cmd.OutOrStdout()
+			p := newPrinter(cmd)
 
 			switch {
 			case asDOT:
-				fmt.Fprintln(out, "digraph workspace {")
-				fmt.Fprintln(out, "  rankdir=LR;")
+				p.println("digraph workspace {")
+				p.println("  rankdir=LR;")
 				for _, m := range g.Modules {
-					fmt.Fprintf(out, "  %q;\n", m.Path)
+					p.printf("  %q;\n", m.Path)
 				}
 				for _, e := range g.Edges() {
-					fmt.Fprintf(out, "  %q -> %q;\n", e[0], e[1])
+					p.printf("  %q -> %q;\n", e[0], e[1])
 				}
-				fmt.Fprintln(out, "}")
+				p.println("}")
 
 			case asJSON:
 				type node struct {
@@ -52,7 +51,7 @@ func newGraphCmd() *cobra.Command {
 						Dependents: g.Dependents(m.Path),
 					})
 				}
-				enc := json.NewEncoder(out)
+				enc := json.NewEncoder(p.Out())
 				enc.SetIndent("", "  ")
 				return enc.Encode(nodes)
 
@@ -60,12 +59,12 @@ func newGraphCmd() *cobra.Command {
 				for _, m := range g.Modules {
 					deps := g.Dependencies(m.Path)
 					if len(deps) == 0 {
-						fmt.Fprintf(out, "%s\n", m.Path)
+						p.printf("%s\n", m.Path)
 						continue
 					}
-					fmt.Fprintf(out, "%s\n", m.Path)
+					p.printf("%s\n", m.Path)
 					for _, d := range deps {
-						fmt.Fprintf(out, "  -> %s\n", d)
+						p.printf("  -> %s\n", d)
 					}
 				}
 			}

@@ -28,10 +28,10 @@ func newLintCmd() *cobra.Command {
 			fireHook(cmd, root, mods, "pre-lint")
 			defer fireHook(cmd, root, mods, "post-lint")
 			mismatches := workspace.Lint(mods)
-			out := cmd.OutOrStdout()
+			p := newPrinter(cmd)
 
 			if len(mismatches) == 0 {
-				fmt.Fprintln(out, "ok: no version mismatches")
+				p.println("ok: no version mismatches")
 				return nil
 			}
 
@@ -40,9 +40,9 @@ func newLintCmd() *cobra.Command {
 				if mm.Dep == workspace.GoDirective || mm.Dep == workspace.ToolchainDirective {
 					label = "[" + mm.Dep + " directive]"
 				}
-				fmt.Fprintf(out, "%s:\n", label)
+				p.printf("%s:\n", label)
 				for _, v := range mm.SortedVersions() {
-					fmt.Fprintf(out, "  %-20s %s\n", v, strings.Join(mm.Versions[v], ", "))
+					p.printf("  %-20s %s\n", v, strings.Join(mm.Versions[v], ", "))
 				}
 			}
 
@@ -60,12 +60,12 @@ func newLintCmd() *cobra.Command {
 					return fmt.Errorf("rewriting %s go.mod: %w", m.Path, err)
 				}
 			}
-			fmt.Fprintf(out, "\nfixed dependency versions in %d module(s) (strategy: %s)\n", len(changed), strat)
+			p.printf("\nfixed dependency versions in %d module(s) (strategy: %s)\n", len(changed), strat)
 
 			// Directive mismatches are not auto-fixed; surface if any remain.
 			for _, mm := range mismatches {
 				if mm.Dep == workspace.GoDirective || mm.Dep == workspace.ToolchainDirective {
-					fmt.Fprintf(out, "note: %s directive still mismatched (align manually)\n", mm.Dep)
+					p.printf("note: %s directive still mismatched (align manually)\n", mm.Dep)
 				}
 			}
 			return nil

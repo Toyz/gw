@@ -23,17 +23,17 @@ func newDoctorCmd() *cobra.Command {
 				return err
 			}
 			issues := workspace.Diagnose(root, cfg, mods)
-			out := cmd.OutOrStdout()
+			p := newPrinter(cmd)
 
 			if len(issues) == 0 {
-				fmt.Fprintln(out, "ok: workspace is healthy")
+				p.println("ok: workspace is healthy")
 				return nil
 			}
 			for _, is := range issues {
-				fmt.Fprintf(out, "%-5s %s\n      fix: %s\n", is.Severity, is.Msg, is.Fix)
+				p.printf("%-5s %s\n      fix: %s\n", is.Severity, is.Msg, is.Fix)
 			}
 			errs, warns, infos := workspace.CountBySeverity(issues)
-			fmt.Fprintf(out, "\n%d error(s), %d warning(s), %d info\n", errs, warns, infos)
+			p.printf("\n%d error(s), %d warning(s), %d info\n", errs, warns, infos)
 
 			if errs > 0 || (strict && warns > 0) {
 				return fmt.Errorf("workspace has problems")

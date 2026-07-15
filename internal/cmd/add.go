@@ -15,6 +15,7 @@ func newAddCmd() *cobra.Command {
 		Short: "Add a module directory to go.work",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			p := newPrinter(cmd)
 			root, err := resolveRoot()
 			if err != nil {
 				return err
@@ -54,7 +55,7 @@ func newAddCmd() *cobra.Command {
 			if err := workspace.WriteWorkFile(root, wf); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "added %s (%s)\n", up, modPath)
+			p.printf("added %s (%s)\n", up, modPath)
 			return nil
 		},
 	}

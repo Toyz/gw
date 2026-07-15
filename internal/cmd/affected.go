@@ -46,20 +46,20 @@ func newAffectedCmd() *cobra.Command {
 			if seedsOnly {
 				result = seeds
 			}
-			out := cmd.OutOrStdout()
+			p := newPrinter(cmd)
 
 			if asJSON {
-				enc := json.NewEncoder(out)
+				enc := json.NewEncoder(p.Out())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string][]string{"seeds": seeds, "impacted": impacted})
 			}
 
-			for _, p := range result {
+			for _, mp := range result {
 				if asDirs {
-					fmt.Fprintln(out, workspace.UsePath(root, g.Module(p).Dir))
+					p.println(workspace.UsePath(root, g.Module(mp).Dir))
 					continue
 				}
-				fmt.Fprintln(out, p)
+				p.println(mp)
 			}
 			return nil
 		},

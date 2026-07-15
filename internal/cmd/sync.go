@@ -42,35 +42,35 @@ func newSyncCmd() *cobra.Command {
 			}
 			added, removed := workspace.SetUseSet(wf, root, mods)
 
-			out := cmd.OutOrStdout()
+			p := newPrinter(cmd)
 			if !check && !dryRun {
 				fireHook(cmd, root, mods, "pre-sync")
 			}
-			for _, p := range added {
-				fmt.Fprintf(out, "+ %s\n", p)
+			for _, pth := range added {
+				p.printf("+ %s\n", pth)
 			}
-			for _, p := range removed {
-				fmt.Fprintf(out, "- %s\n", p)
+			for _, pth := range removed {
+				p.printf("- %s\n", pth)
 			}
 
 			if check {
 				if len(added)+len(removed) > 0 {
 					return fmt.Errorf("go.work is out of date (%d added, %d removed)", len(added), len(removed))
 				}
-				fmt.Fprintln(out, "go.work is up to date")
+				p.println("go.work is up to date")
 				return nil
 			}
 
 			if dryRun {
-				fmt.Fprintf(out, "# %s (dry run)\n", workspace.WorkFileName)
-				out.Write(workspace.FormatWorkFile(wf))
+				p.printf("# %s (dry run)\n", workspace.WorkFileName)
+				p.Out().Write(workspace.FormatWorkFile(wf))
 				return nil
 			}
 
 			if err := workspace.WriteWorkFile(root, wf); err != nil {
 				return err
 			}
-			fmt.Fprintf(out, "wrote %s: %d module(s)\n", workspace.WorkFileName, len(mods))
+			p.printf("wrote %s: %d module(s)\n", workspace.WorkFileName, len(mods))
 
 			if !noWorkSync {
 				gwc := exec.Command("go", "work", "sync")

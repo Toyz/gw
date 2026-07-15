@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -23,7 +22,7 @@ func newListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := cmd.OutOrStdout()
+			p := newPrinter(cmd)
 
 			if asJSON {
 				type modJSON struct {
@@ -41,16 +40,16 @@ func newListCmd() *cobra.Command {
 						GoVersion: m.GoVersion, Toolchain: m.Toolchain, Requires: m.Requires,
 					})
 				}
-				enc := json.NewEncoder(out)
+				enc := json.NewEncoder(p.Out())
 				enc.SetIndent("", "  ")
 				return enc.Encode(list)
 			}
 
 			for _, m := range mods {
-				fmt.Fprintf(out, "%s\t%s\n", workspace.UsePath(root, m.Dir), m.Path)
+				p.printf("%s\t%s\n", workspace.UsePath(root, m.Dir), m.Path)
 				if verbose {
 					if m.GoVersion != "" {
-						fmt.Fprintf(out, "    go %s\n", m.GoVersion)
+						p.printf("    go %s\n", m.GoVersion)
 					}
 					deps := make([]string, 0, len(m.Requires))
 					for d := range m.Requires {
@@ -58,7 +57,7 @@ func newListCmd() *cobra.Command {
 					}
 					sort.Strings(deps)
 					for _, d := range deps {
-						fmt.Fprintf(out, "    %s %s\n", d, m.Requires[d])
+						p.printf("    %s %s\n", d, m.Requires[d])
 					}
 				}
 			}

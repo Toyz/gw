@@ -34,15 +34,16 @@ func toGwextModules(mods []workspace.Module) []gwext.Module {
 // workspace's configured env (config-level only; per-invocation --env flags stay
 // scoped to the module commands themselves).
 func fireHook(cmd *cobra.Command, root string, mods []workspace.Module, event string) {
+	p := newPrinter(cmd)
 	var env []string
 	if cfg, err := workspace.LoadConfig(root); err == nil {
 		if env, err = workspace.ResolveEnv(root, cfg, nil, nil); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "hook %s: env: %v\n", event, err)
+			p.warnf("hook %s: env: %v", event, err)
 			env = nil
 		}
 	}
-	if err := ext.RunHook(root, event, toGwextModules(mods), env, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "hook %s: %v\n", event, err)
+	if err := ext.RunHook(root, event, toGwextModules(mods), env, p.Out(), p.Err()); err != nil {
+		p.warnf("hook %s: %v", event, err)
 	}
 }
 
@@ -62,6 +63,7 @@ func newExtInitCmd() *cobra.Command {
 		Short: "Scaffold .gw/build.go and its module",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			p := newPrinter(cmd)
 			root, err := resolveRoot()
 			if err != nil {
 				return err
@@ -87,9 +89,9 @@ func newExtInitCmd() *cobra.Command {
 			get.Env = append(os.Environ(), "GOWORK=off")
 			get.Stdout, get.Stderr = cmd.OutOrStdout(), cmd.ErrOrStderr()
 			if err := get.Run(); err != nil {
-				fmt.Fprintln(cmd.ErrOrStderr(), "note: `go get github.com/toyz/gw@latest` failed; run it in .gw manually")
+				p.warnf("note: `go get github.com/toyz/gw@latest` failed; run it in .gw manually")
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "scaffolded %s\nedit it, then run `gw <command>` or `gw ext list`\n",
+			p.printf("scaffolded %s\nedit it, then run `gw <command>` or `gw ext list`\n",
 				filepath.Join(".gw", "build.go"))
 			return nil
 		},
@@ -113,7 +115,7 @@ func newExtBuildCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), bin)
+			newPrinter(cmd).println(bin)
 			return nil
 		},
 	}
@@ -136,22 +138,22 @@ func newExtListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := cmd.OutOrStdout()
+			p := newPrinter(cmd)
 			for _, c := range m.Commands {
 				kind := "command"
 				if c.Override {
 					kind = "override"
 				}
-				fmt.Fprintf(out, "%s  %-16s %s\n", kind, c.Name, c.Short)
+				p.printf("%s  %-16s %s\n", kind, c.Name, c.Short)
 			}
 			for _, h := range m.Hooks {
-				fmt.Fprintf(out, "hook     %s\n", h)
+				p.printf("hook     %s\n", h)
 			}
 			if m.Providers > 0 {
-				fmt.Fprintf(out, "provider %d build provider(s)\n", m.Providers)
+				p.printf("provider %d build provider(s)\n", m.Providers)
 			}
 			for _, h := range m.Hidden {
-				fmt.Fprintf(out, "hides    %s\n", h)
+				p.printf("hides    %s\n", h)
 			}
 			return nil
 		},
@@ -168,9 +170,10 @@ func attachExtCommands(rootCmd *cobra.Command) {
 	if err != nil || !ext.Exists(root) {
 		return
 	}
+	p := newPrinter(rootCmd)
 	m, err := ext.Manifest(root)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "gw: extension: %v\n", err)
+		p.warnf("extension: %v", err)
 		return
 	}
 	builtin := map[string]*cobra.Command{}
@@ -186,7 +189,7 @@ func attachExtCommands(rootCmd *cobra.Command) {
 	for _, ci := range m.Commands {
 		if c, clash := builtin[ci.Name]; clash {
 			if !ci.Override {
-				fmt.Fprintf(os.Stderr, "gw: extension command %q shadowed by builtin; skipped (use gwext.Override to replace)\n", ci.Name)
+				p.warnf("extension command %q shadowed by builtin; skipped (use gwext.Override to replace)", ci.Name)
 				continue
 			}
 			rootCmd.RemoveCommand(c)

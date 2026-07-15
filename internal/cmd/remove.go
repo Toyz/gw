@@ -15,6 +15,7 @@ func newRemoveCmd() *cobra.Command {
 		Short:   "Remove a module directory from go.work",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			p := newPrinter(cmd)
 			root, err := resolveRoot()
 			if err != nil {
 				return err
@@ -56,7 +57,7 @@ func newRemoveCmd() *cobra.Command {
 			if err := workspace.WriteWorkFile(root, wf); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", canonical)
+			p.printf("removed %s\n", canonical)
 			return nil
 		},
 	}
