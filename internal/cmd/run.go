@@ -4,8 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/toyz/gw/gwext"
+	"github.com/toyz/gw/internal/ext"
 	"github.com/toyz/gw/internal/workspace"
 )
 
@@ -24,9 +28,16 @@ func (f *execFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVar(&f.envVars, "env", nil, "set an environment variable KEY=VALUE (repeatable)")
 }
 
-// runArgvAcross discovers modules and runs argv in each, printing a summary and
-// returning an error that yields the worst module exit code.
-func runArgvAcross(cmd *cobra.Command, f execFlags, argv []string) error {
+// goInject selects which build-provider outputs a command accepts.
+type goInject struct {
+	tags    bool // append -tags from provider tags (build/test/vet)
+	ldflags bool // append -ldflags "-X k=v" from provider vars (build/test)
+}
+
+// runArgvAcross runs prefix+injected-flags+userArgs in every module, printing a
+// summary and exiting with the worst module exit code. inj controls whether
+// extension build-provider tags/ldflags are woven in between prefix and userArgs.
+func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, inj goInject) error {
 	root, cfg, mods, err := loadWorkspace()
 	if err != nil {
 		return err
@@ -34,10 +45,28 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, argv []string) error {
 	if len(mods) == 0 {
 		return fmt.Errorf("no modules found")
 	}
-	env, err := workspace.ResolveEnv(root, cfg, f.envFiles, f.envVars)
+
+	base, info, err := workspaceEnv(root, cfg, mods)
 	if err != nil {
 		return err
 	}
+	cli, err := workspace.ResolveCLIEnv(root, f.envFiles, f.envVars)
+	if err != nil {
+		return err
+	}
+	env := append(base, cli...)
+
+	argv := append([]string{}, prefix...)
+	if inj.tags {
+		if tags := dedupStrings(info.Tags); len(tags) > 0 {
+			argv = append(argv, "-tags="+strings.Join(tags, ","))
+		}
+	}
+	if inj.ldflags && len(info.Vars) > 0 {
+		argv = append(argv, "-ldflags="+ldflagsX(info.Vars))
+	}
+	argv = append(argv, userArgs...)
+
 	fireHook(cmd, root, mods, "pre-"+cmd.Name())
 	results := workspace.RunAcross(context.Background(), mods, argv, workspace.ExecOpts{
 		Parallel:        f.parallel,
@@ -54,6 +83,69 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, argv []string) error {
 	return nil
 }
 
+// workspaceEnv is the env applied to every command gw spawns: config env plus
+// extension build-provider env, as sorted KEY=VALUE overrides. It also returns
+// the resolved BuildInfo so callers can reuse its vars/tags. CLI --env layers on
+// top of this (see runArgvAcross).
+func workspaceEnv(root string, cfg workspace.Config, mods []workspace.Module) ([]string, gwext.BuildInfo, error) {
+	info, err := ext.Provide(root, toGwextModules(mods))
+	if err != nil {
+		return nil, info, err
+	}
+	cfgEnv, err := workspace.ResolveConfigEnv(root, cfg)
+	if err != nil {
+		return nil, info, err
+	}
+	return append(cfgEnv, sortedEnv(info.Env)...), info, nil
+}
+
+// ldflagsX renders provider vars as a `-ldflags` value: -X key=value pairs,
+// sorted, space-joined (go splits the value on spaces).
+func ldflagsX(vars map[string]string) string {
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, "-X "+k+"="+vars[k])
+	}
+	return strings.Join(parts, " ")
+}
+
+// sortedEnv renders a map as sorted KEY=VALUE entries (nil for an empty map).
+func sortedEnv(m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, k+"="+m[k])
+	}
+	return out
+}
+
+// dedupStrings returns the sorted, de-duplicated, non-empty members of in.
+func dedupStrings(in []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range in {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func newRunCmd() *cobra.Command {
 	var f execFlags
 	cmd := &cobra.Command{
@@ -62,7 +154,7 @@ func newRunCmd() *cobra.Command {
 		Long:  "run executes an arbitrary command inside each module. Put the command after --.",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runArgvAcross(cmd, f, args)
+			return runArgvAcross(cmd, f, args, nil, goInject{})
 		},
 	}
 	f.bind(cmd)
@@ -77,6 +169,7 @@ type goCmd struct {
 	base    []string // argv prefix, e.g. {"go", "build"}
 	defArgs []string // appended when the user passes no args (nil = pass none)
 	noArgs  bool     // reject positional args (tidy)
+	inject  goInject // which build-provider flags this command accepts
 }
 
 func (gc goCmd) command() *cobra.Command {
@@ -93,8 +186,7 @@ func (gc goCmd) command() *cobra.Command {
 			if len(args) == 0 {
 				args = gc.defArgs
 			}
-			argv := append(append([]string{}, gc.base...), args...)
-			return runArgvAcross(cmd, f, argv)
+			return runArgvAcross(cmd, f, gc.base, args, gc.inject)
 		},
 	}
 	f.bind(cmd)
@@ -103,10 +195,11 @@ func (gc goCmd) command() *cobra.Command {
 
 // goCommands are the built-in `go` passthroughs. Add a row to add a command;
 // each gets -p/--continue-on-error/--env* and pre-/post-<name> hooks for free.
+// inject marks which commands weave in an extension's build-provider tags/vars.
 var goCommands = []goCmd{
-	{use: "build [packages/flags...]", short: "Run `go build` in every module (default ./...)", base: []string{"go", "build"}, defArgs: []string{"./..."}},
-	{use: "test [packages/flags...]", short: "Run `go test` in every module (default ./...)", base: []string{"go", "test"}, defArgs: []string{"./..."}},
-	{use: "vet [packages/flags...]", short: "Run `go vet` in every module (default ./...)", base: []string{"go", "vet"}, defArgs: []string{"./..."}},
+	{use: "build [packages/flags...]", short: "Run `go build` in every module (default ./...)", base: []string{"go", "build"}, defArgs: []string{"./..."}, inject: goInject{tags: true, ldflags: true}},
+	{use: "test [packages/flags...]", short: "Run `go test` in every module (default ./...)", base: []string{"go", "test"}, defArgs: []string{"./..."}, inject: goInject{tags: true, ldflags: true}},
+	{use: "vet [packages/flags...]", short: "Run `go vet` in every module (default ./...)", base: []string{"go", "vet"}, defArgs: []string{"./..."}, inject: goInject{tags: true}},
 	{use: "generate [packages/flags...]", short: "Run `go generate` in every module (default ./...)", base: []string{"go", "generate"}, defArgs: []string{"./..."}},
 	{use: "tidy", short: "Run `go mod tidy` in every module", base: []string{"go", "mod", "tidy"}, noArgs: true},
 }

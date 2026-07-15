@@ -149,6 +149,26 @@ func main() {
 - `c.Go(dir, args...)`, `c.Run(dir, bin, args...)`, `c.Start(...)` for root-level or
   arbitrary directories.
 
+**Build providers** (`gwext.Provide`) let an extension *compute* environment and
+Go build settings at run time — gw's analogue of a Cargo build script emitting
+`cargo::rustc-env` / `rustc-cfg`:
+
+```go
+gwext.Provide(func(c *gwext.Context) (gwext.BuildInfo, error) {
+	sha := gitSHA() // or read a vault, derive a port, ...
+	return gwext.BuildInfo{
+		Env:  map[string]string{"BUILD_SHA": sha}, // process env for every command
+		Vars: map[string]string{"example.com/app/version.Commit": sha}, // -ldflags -X (build/test)
+		Tags: []string{"production"},              // build tags (build/test/vet)
+	}, nil
+})
+```
+
+`Env` layers into every command between config and `--env` (so `--env` still
+wins). `Vars` become `-ldflags "-X key=value"` and `Tags` become `-tags` on the
+compiling commands. Providers may print freely — that goes to stderr, never the
+result.
+
 **Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `build`, `test`, `vet`,
 `generate`, `tidy` (e.g. `post-sync`, `pre-test`). Custom command names that collide with a builtin
 are ignored (builtins always win). The compiled binary is cached under `.gw/bin/`

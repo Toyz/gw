@@ -56,6 +56,65 @@ func TestParseEnvFile(t *testing.T) {
 	}
 }
 
+func TestParseEnvFileExpansion(t *testing.T) {
+	t.Setenv("HOST", "example.com")
+	t.Setenv("EMPTY_IN_ENV", "")
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".env")
+	// Note: \r checks CRLF; the leading BOM is prepended below.
+	content := "BASE=/opt\r\n" +
+		"BIN=${BASE}/bin\n" + // ${VAR} refs an earlier line
+		"URL=https://$HOST/api\n" + // $VAR refs the process env
+		"FRAG=http://x#keep\n" + // '#' without leading space stays
+		"NOTE=value # trailing comment\n" + // inline comment stripped
+		"LITERAL='$HOST and #hash'\n" + // single quotes: no expand, no comment
+		"ESCAPED=\"cost is \\$5\"\n" + // \$ -> literal $
+		"DEFAULT=${MISSING:-fallback}\n" + // default when unset
+		"EMPTY=${EMPTY_IN_ENV:-used}\n" + // :- also triggers on empty
+		"KEEPEMPTY=${EMPTY_IN_ENV-unused}\n" // - keeps the empty value
+	if err := os.WriteFile(path, append([]byte{0xEF, 0xBB, 0xBF}, content...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ParseEnvFile(path)
+	if err != nil {
+		t.Fatalf("ParseEnvFile: %v", err)
+	}
+	want := map[string]string{
+		"BASE":      "/opt",
+		"BIN":       "/opt/bin",
+		"URL":       "https://example.com/api",
+		"FRAG":      "http://x#keep",
+		"NOTE":      "value",
+		"LITERAL":   "$HOST and #hash",
+		"ESCAPED":   "cost is $5",
+		"DEFAULT":   "fallback",
+		"EMPTY":     "used",
+		"KEEPEMPTY": "",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d entries, want %d: %q", len(got), len(want), got)
+	}
+	for k, w := range want {
+		if v, ok := lastVal(got, k); !ok || v != w {
+			t.Errorf("%s = %q (ok=%v), want %q", k, v, ok, w)
+		}
+	}
+}
+
+func TestParseEnvFileUnterminatedQuote(t *testing.T) {
+	dir := t.TempDir()
+	for _, bad := range []string{"K=\"no close\n", "K='no close\n"} {
+		path := filepath.Join(dir, "bad.env")
+		if err := os.WriteFile(path, []byte(bad), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ParseEnvFile(path); err == nil {
+			t.Errorf("expected error for unterminated quote in %q", bad)
+		}
+	}
+}
+
 func TestParseEnvFileBadLine(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".env")

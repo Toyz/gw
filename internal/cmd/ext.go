@@ -143,6 +143,9 @@ func newExtListCmd() *cobra.Command {
 			for _, h := range m.Hooks {
 				fmt.Fprintf(out, "hook     %s\n", h)
 			}
+			if m.Providers > 0 {
+				fmt.Fprintf(out, "provider %d build provider(s)\n", m.Providers)
+			}
 			return nil
 		},
 	}
@@ -186,7 +189,7 @@ func attachExtCommands(rootCmd *cobra.Command) {
 				if err != nil {
 					return err
 				}
-				env, err := workspace.ResolveEnv(r, cfg, nil, nil)
+				env, _, err := workspaceEnv(r, cfg, mods)
 				if err != nil {
 					return err
 				}

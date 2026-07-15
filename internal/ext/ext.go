@@ -114,6 +114,52 @@ func run(bin string, argv []string, environ []string, stdin io.Reader, stdout, s
 	return cmd.Run()
 }
 
+// Provide runs the extension's build providers (if any) and returns their merged
+// BuildInfo. It is a no-op returning a zero BuildInfo when no extension exists or
+// none of its providers register. Provider stdout carries the JSON result;
+// provider diagnostics stream to gw's stderr.
+func Provide(root string, mods []gwext.Module) (gwext.BuildInfo, error) {
+	var bi gwext.BuildInfo
+	if !Exists(root) {
+		return bi, nil
+	}
+	m, err := Manifest(root)
+	if err != nil {
+		return bi, err
+	}
+	if m.Providers == 0 {
+		return bi, nil
+	}
+	bin, err := Build(root)
+	if err != nil {
+		return bi, err
+	}
+	out, err := capture(bin, []string{sentinel, "provide"}, env(root, nil), modulesReader(mods))
+	if err != nil {
+		return bi, fmt.Errorf("running extension providers: %w", err)
+	}
+	if err := json.Unmarshal(out, &bi); err != nil {
+		return bi, fmt.Errorf("parsing extension build info: %w", err)
+	}
+	return bi, nil
+}
+
+// capture runs the extension binary and returns its stdout. Its stderr streams
+// to gw's stderr so provider diagnostics stay visible; stdin carries the module
+// payload, as for every other verb.
+func capture(bin string, argv, environ []string, stdin io.Reader) ([]byte, error) {
+	cmd := exec.Command(bin, argv...)
+	cmd.Env = environ
+	cmd.Stdin = stdin
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
 // env is the environment handed to the extension: the ambient environment plus
 // GW_ROOT and any workspace-config overrides (extra). Only small, bounded values
 // belong here; the module set is streamed over stdin (see modulesReader) because

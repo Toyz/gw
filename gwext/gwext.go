@@ -213,10 +213,26 @@ type CommandInfo struct {
 	Short string `json:"short"`
 }
 
-// Manifest is what gw reads to learn an extension's commands and hooks.
+// Manifest is what gw reads to learn an extension's commands, hooks, and how
+// many build providers it registers.
 type Manifest struct {
-	Commands []CommandInfo `json:"commands"`
-	Hooks    []string      `json:"hooks"`
+	Commands  []CommandInfo `json:"commands"`
+	Hooks     []string      `json:"hooks"`
+	Providers int           `json:"providers"`
+}
+
+// BuildInfo is what a Provide function contributes to gw's commands, computed at
+// run time (a git SHA, a build stamp, a derived tag). It is gw's analogue of a
+// Cargo build script's cargo::rustc-env / rustc-cfg output.
+type BuildInfo struct {
+	// Env sets process environment variables for every command gw runs
+	// (build/test/vet/generate/tidy, run, and extension commands).
+	Env map[string]string `json:"env,omitempty"`
+	// Vars are stamped into the binary via `-ldflags "-X <key>=<value>"` for the
+	// compiling commands (build, test). Keys are `importpath.Name`.
+	Vars map[string]string `json:"vars,omitempty"`
+	// Tags are build tags added to the compiling commands (build, test, vet).
+	Tags []string `json:"tags,omitempty"`
 }
 
 type commandReg struct {
@@ -225,8 +241,9 @@ type commandReg struct {
 }
 
 var (
-	commands []commandReg
-	hooks    = map[string][]func(*Context) error{}
+	commands  []commandReg
+	hooks     = map[string][]func(*Context) error{}
+	providers []func(*Context) (BuildInfo, error)
 )
 
 // Command registers a custom subcommand, invocable as `gw <name>`.
@@ -238,6 +255,15 @@ func Command(name, short string, run func(*Context) error) {
 // "post-lint"). Multiple hooks per event run in registration order.
 func Hook(event string, run func(*Context) error) {
 	hooks[event] = append(hooks[event], run)
+}
+
+// Provide registers a build provider: a function that computes a BuildInfo
+// (environment variables, -ldflags -X vars, build tags) at run time, which gw
+// folds into its commands. It is gw's analogue of a Cargo build script emitting
+// cargo::rustc-env / rustc-cfg. Multiple providers merge in registration order;
+// providers may print freely (that output is routed to stderr, not the result).
+func Provide(fn func(*Context) (BuildInfo, error)) {
+	providers = append(providers, fn)
 }
 
 // The protocol sentinel keeps gw's calls from colliding with user arguments.
@@ -267,13 +293,15 @@ func Main() {
 			fail("gwext: hook requires an event")
 		}
 		runHook(args[2])
+	case "provide":
+		emitProvide()
 	default:
 		fail("gwext: unknown verb " + args[1])
 	}
 }
 
 func emitManifest() {
-	m := Manifest{}
+	m := Manifest{Providers: len(providers)}
 	for _, c := range commands {
 		m.Commands = append(m.Commands, c.info)
 	}
@@ -283,6 +311,34 @@ func emitManifest() {
 	sort.Strings(m.Hooks)
 	sort.Slice(m.Commands, func(i, j int) bool { return m.Commands[i].Name < m.Commands[j].Name })
 	if err := json.NewEncoder(os.Stdout).Encode(m); err != nil {
+		fail("gwext: " + err.Error())
+	}
+}
+
+// emitProvide runs every registered build provider, merges their BuildInfo, and
+// writes the result as JSON on stdout. Provider stdout is redirected to stderr
+// while they run so a stray print cannot corrupt the JSON result gw reads.
+func emitProvide() {
+	ctx := contextFromEnv()
+	real := os.Stdout
+	os.Stdout = os.Stderr
+	merged := BuildInfo{Env: map[string]string{}, Vars: map[string]string{}}
+	for _, p := range providers {
+		bi, err := p(ctx)
+		if err != nil {
+			os.Stdout = real
+			fail("gwext: build provider: " + err.Error())
+		}
+		for k, v := range bi.Env {
+			merged.Env[k] = v
+		}
+		for k, v := range bi.Vars {
+			merged.Vars[k] = v
+		}
+		merged.Tags = append(merged.Tags, bi.Tags...)
+	}
+	os.Stdout = real
+	if err := json.NewEncoder(os.Stdout).Encode(merged); err != nil {
 		fail("gwext: " + err.Error())
 	}
 }
@@ -333,6 +389,9 @@ func printHuman() {
 	sort.Strings(evs)
 	for _, e := range evs {
 		fmt.Printf("  hook     %s\n", e)
+	}
+	if len(providers) > 0 {
+		fmt.Printf("  provider %d build provider(s)\n", len(providers))
 	}
 	fmt.Println("\nThis binary is driven by gw; run `gw <command>` instead.")
 }
