@@ -28,6 +28,7 @@ go install github.com/toyz/gw@latest
 | `gw graph` | Print the intra-workspace dependency DAG (edge A->B = A requires B). Text, `--dot` (Graphviz), or `--json`. Edges come from direct/indirect requires and local `replace` targets. |
 | `gw affected --since <ref>` | Diff the working tree against a git ref, map changed files to owning modules, and walk the DAG to every impacted module. `--seeds` (only directly-changed), `--dir`, `--json`. Feed selective CI: `gw affected --since main`. |
 | `gw doctor` | One-shot health check: missing/stale `go.work`, use entries with no `go.mod`, modules missing from `go.work`, un-hoisted `replace` directives, and version/directive drift. Exits non-zero on any error (`--strict` also fails on warnings). |
+| `gw verify` | Check the **release contract** workspace mode hides: every require on another workspace module must resolve to a **real published tag** whose code still matches what's on disk. Inside the workspace such a require resolves to local code, so `go build` passes even when the version was never tagged — `verify` runs the checks an external consumer (or `GOWORK=off` release build) would hit. Also flags local-path `replace` leaks, and prints a release plan in dependency order. Exits non-zero on errors (`--strict` also on warnings); `--json`. |
 
 `-C, --root <dir>` sets the workspace root (default: nearest ancestor with a
 `go.work`, else the current directory).

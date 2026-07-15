@@ -59,6 +59,7 @@ export const COMMAND_GROUPS: CommandGroup[] = [
       { name: "gw sync", desc: "Regenerate the use set from discovered modules. --check fails stale CI." },
       { name: "gw lint", desc: "Report cross-module version drift; --fix aligns it." },
       { name: "gw doctor", desc: "One-pass health check: stale go.work, un-hoisted replaces, drift." },
+      { name: "gw verify", desc: "Check intra-workspace requires resolve to real published tags — the release contract workspace mode hides. --strict fails CI." },
     ],
   },
   {
