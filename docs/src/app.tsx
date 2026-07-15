@@ -2,6 +2,7 @@ import {
   LoomElement,
   component,
   inject,
+  mount,
   on,
   reactive,
   styles,
@@ -16,10 +17,17 @@ import { base } from "./styles";
 @component("gw-site")
 @styles(base)
 export class GwSite extends LoomElement {
-  @reactive accessor path = currentPath();
+  @reactive accessor path = "/";
   // Singleton service; its start() ran (and awaited the fetch) before this
   // component ever rendered, so tag.value is already populated below.
   @inject(ReleaseService) accessor release!: ReleaseService;
+
+  // Read the initial route on connect (before first paint), so the global
+  // location read stays out of the constructor.
+  @mount
+  readInitialPath() {
+    this.path = currentPath();
+  }
 
   @on(RouteChanged)
   onRoute(e: RouteChanged) {
