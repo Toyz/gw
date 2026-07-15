@@ -20,6 +20,8 @@ go install github.com/toyz/gw@latest
 | `gw run -- <cmd>` | Run a command in every module's directory. `-p` parallel, `--continue-on-error`. Inject env with `--env-file <f>` (dotenv, repeatable) and `--env KEY=VAL` (repeatable); see [Config](#config-optional-gwtoml). |
 | `gw build [args]` | `go build` across every module (default `./...`) — a per-module compile check with a pass/fail summary. `-p` parallel; same `--env-file`/`--env` as `run`. |
 | `gw test [args]` | `go test` across every module (default `./...`). `-p` parallel; same `--env-file`/`--env` as `run`. |
+| `gw vet [args]` | `go vet` across every module (default `./...`). `-p` parallel; same flags as `run`. |
+| `gw generate [args]` | `go generate` across every module (default `./...`). `-p` parallel; same flags as `run`. |
 | `gw tidy` | `go mod tidy` across every module. `-p` parallel; same `--env-file`/`--env` as `run`. |
 | `gw list` | List modules; `-v` adds go version + external requires; `--json`. |
 | `gw add <path>` / `gw remove <path>` | Add/remove a single module's `use` directive. |
@@ -147,8 +149,8 @@ func main() {
 - `c.Go(dir, args...)`, `c.Run(dir, bin, args...)`, `c.Start(...)` for root-level or
   arbitrary directories.
 
-**Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `build`, `test`, `tidy`
-(e.g. `post-sync`, `pre-test`). Custom command names that collide with a builtin
+**Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `build`, `test`, `vet`,
+`generate`, `tidy` (e.g. `post-sync`, `pre-test`). Custom command names that collide with a builtin
 are ignored (builtins always win). The compiled binary is cached under `.gw/bin/`
 (git-ignored) and rebuilt only when `.gw` sources change.
 

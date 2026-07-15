@@ -32,9 +32,6 @@ func newRootCmd() *cobra.Command {
 		newSyncCmd(),
 		newLintCmd(),
 		newRunCmd(),
-		newBuildCmd(),
-		newTestCmd(),
-		newTidyCmd(),
 		newListCmd(),
 		newAddCmd(),
 		newRemoveCmd(),
@@ -43,6 +40,9 @@ func newRootCmd() *cobra.Command {
 		newDoctorCmd(),
 		newExtCmd(),
 	)
+	for _, gc := range goCommands {
+		root.AddCommand(gc.command())
+	}
 	return root
 }
 

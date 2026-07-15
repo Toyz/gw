@@ -9,7 +9,7 @@ import (
 	"github.com/toyz/gw/internal/workspace"
 )
 
-// execFlags are shared by run/test/tidy.
+// execFlags are shared by run and every go-passthrough command.
 type execFlags struct {
 	parallel        bool
 	continueOnError bool
@@ -69,50 +69,44 @@ func newRunCmd() *cobra.Command {
 	return cmd
 }
 
-func newBuildCmd() *cobra.Command {
+// goCmd is a `go` subcommand fanned out across every module. The builtins
+// build/test/vet/generate/tidy are all instances of this one shape.
+type goCmd struct {
+	use     string   // cobra Use string, e.g. "build [packages/flags...]"
+	short   string   // one-line help
+	base    []string // argv prefix, e.g. {"go", "build"}
+	defArgs []string // appended when the user passes no args (nil = pass none)
+	noArgs  bool     // reject positional args (tidy)
+}
+
+func (gc goCmd) command() *cobra.Command {
 	var f execFlags
+	accept := cobra.ArbitraryArgs
+	if gc.noArgs {
+		accept = cobra.NoArgs
+	}
 	cmd := &cobra.Command{
-		Use:   "build [packages/flags...]",
-		Short: "Run `go build` in every module (default ./...)",
-		Args:  cobra.ArbitraryArgs,
+		Use:   gc.use,
+		Short: gc.short,
+		Args:  accept,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				args = []string{"./..."}
+				args = gc.defArgs
 			}
-			return runArgvAcross(cmd, f, append([]string{"go", "build"}, args...))
+			argv := append(append([]string{}, gc.base...), args...)
+			return runArgvAcross(cmd, f, argv)
 		},
 	}
 	f.bind(cmd)
 	return cmd
 }
 
-func newTestCmd() *cobra.Command {
-	var f execFlags
-	cmd := &cobra.Command{
-		Use:   "test [packages/flags...]",
-		Short: "Run `go test` in every module (default ./...)",
-		Args:  cobra.ArbitraryArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				args = []string{"./..."}
-			}
-			return runArgvAcross(cmd, f, append([]string{"go", "test"}, args...))
-		},
-	}
-	f.bind(cmd)
-	return cmd
-}
-
-func newTidyCmd() *cobra.Command {
-	var f execFlags
-	cmd := &cobra.Command{
-		Use:   "tidy",
-		Short: "Run `go mod tidy` in every module",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runArgvAcross(cmd, f, []string{"go", "mod", "tidy"})
-		},
-	}
-	f.bind(cmd)
-	return cmd
+// goCommands are the built-in `go` passthroughs. Add a row to add a command;
+// each gets -p/--continue-on-error/--env* and pre-/post-<name> hooks for free.
+var goCommands = []goCmd{
+	{use: "build [packages/flags...]", short: "Run `go build` in every module (default ./...)", base: []string{"go", "build"}, defArgs: []string{"./..."}},
+	{use: "test [packages/flags...]", short: "Run `go test` in every module (default ./...)", base: []string{"go", "test"}, defArgs: []string{"./..."}},
+	{use: "vet [packages/flags...]", short: "Run `go vet` in every module (default ./...)", base: []string{"go", "vet"}, defArgs: []string{"./..."}},
+	{use: "generate [packages/flags...]", short: "Run `go generate` in every module (default ./...)", base: []string{"go", "generate"}, defArgs: []string{"./..."}},
+	{use: "tidy", short: "Run `go mod tidy` in every module", base: []string{"go", "mod", "tidy"}, noArgs: true},
 }
