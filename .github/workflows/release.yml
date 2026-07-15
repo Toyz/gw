@@ -1,0 +1,42 @@
+name: Release
+
+# Push a semver tag (e.g. `git tag v0.1.2 && git push origin v0.1.2`) and this
+# cuts the GitHub Release from it and fast-forwards the moving major tag (v0),
+# so `uses: toyz/gw@v0` always tracks the latest stable release.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Cut the release and forward the major tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"                 # e.g. v0.1.2 (or v0.1.2-rc1)
+
+          flags=(--title "gw ${tag}" --generate-notes --verify-tag)
+          if [[ "$tag" == *-* ]]; then
+            flags+=(--prerelease)                  # v0.1.2-rc1 → prerelease
+          else
+            flags+=(--latest)
+          fi
+          gh release create "$tag" "${flags[@]}"
+
+          # Fast-forward the moving major tag (v0, v1, ...) — stable releases only.
+          if [[ "$tag" != *-* ]]; then
+            major="${tag%%.*}"                      # v0.1.2 → v0
+            git tag -f "$major" "$tag"
+            git push -f origin "$major"
+          fi
