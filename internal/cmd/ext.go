@@ -212,10 +212,29 @@ func attachExtCommands(rootCmd *cobra.Command) {
 				if err != nil {
 					return err
 				}
-				return ext.RunCommand(r, toGwextModules(mods), name, args, env, cmd.OutOrStdout(), cmd.ErrOrStderr())
+				return ext.RunCommand(r, toGwextModules(mods), name, stripRootFlag(args), env, cmd.OutOrStdout(), cmd.ErrOrStderr())
 			},
 		})
 	}
+}
+
+// stripRootFlag removes the persistent -C/--root flag (and its value) from an
+// extension command's args, which cobra leaves in place under DisableFlagParsing.
+// The extension parses the rest (its own flags) however it likes.
+func stripRootFlag(args []string) []string {
+	var out []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "-C" || a == "--root":
+			i++ // also skip its value
+		case strings.HasPrefix(a, "-C=") || strings.HasPrefix(a, "--root="):
+			// drop
+		default:
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // earlyResolveRoot mirrors resolveRoot but reads -C/--root straight from os.Args,
