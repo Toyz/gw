@@ -23,6 +23,18 @@ const CMD_SAMPLE = `gwext.Command("boot", "build in order",
         return nil
     })`;
 
+const FLAGS_SAMPLE = `gwext.Command("greet", "greet someone",
+    func(c *gwext.Context) error {
+        msg := "hello " + c.String("name")
+        if c.Bool("loud") {
+            msg = strings.ToUpper(msg)
+        }
+        fmt.Println(msg)
+        return nil
+    },
+    gwext.Str("name", "world", "who to greet"),
+    gwext.Bool("loud", "shout it"))`;
+
 const HOOK_SAMPLE = `gwext.Hook("post-sync", func(c *gwext.Context) error {
     fmt.Printf("synced %d modules\\n", len(c.Modules))
     return nil
@@ -247,15 +259,31 @@ export class PageExtensions extends LoomElement {
                 <code>.Build() .Test() .Run() .Vet() .Generate() .Tidy()</code>,
                 plus <code>.Tool(bin)</code> for anything else.
               </p>
-              <p>
-                Declare <b>typed flags</b> with{" "}
-                <code>gwext.Str/Bool/Int</code> after the handler — gw parses
-                them and you read <code>c.String("name")</code>,{" "}
-                <code>c.Bool(...)</code>, <code>c.Int(...)</code>. They show up in{" "}
-                <code>gw &lt;cmd&gt; --help</code> and <code>gw ext list</code>.
-              </p>
             </div>
             {codeWin(".gw/build.go", CMD_SAMPLE)}
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">
+            <loom-icon name="shield-check" size={14} /> Typed flags
+          </div>
+          <div class="grid2">
+            <div class="doc">
+              <p>
+                Declare flags with <code>gwext.Str/Bool/Int</code> after the
+                handler. gw parses them from the user's args; read typed values
+                with <code>c.String</code>, <code>c.Bool</code>,{" "}
+                <code>c.Int</code> — leftover positionals stay in{" "}
+                <code>c.Args</code>.
+              </p>
+              <p>
+                They show up in <code>gw &lt;cmd&gt; --help</code>{" "}
+                (auto-generated usage) and <code>gw ext list</code>; an unknown
+                flag errors out.
+              </p>
+            </div>
+            {codeWin(".gw/build.go", FLAGS_SAMPLE)}
           </div>
         </section>
 
