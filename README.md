@@ -146,6 +146,8 @@ func main() {
 - `c.Mod(path)` -> typed handle: `.Build() .Test() .Run() .Vet() .Generate() .Tidy()`
   (each defaults to `./...`/`.`), `.Go(args...)`, `.Exec(bin, args...)`, `.Start(...)`
   for long-lived processes.
+- Other toolchains: `.Tool(bin)` binds any executable and runs it in the module —
+  `c.Mod("web").Tool("yarn").Run("dev")`; `.Start(...)` for long-lived ones.
 - `c.Go(dir, args...)`, `c.Run(dir, bin, args...)`, `c.Start(...)` for root-level or
   arbitrary directories.
 
