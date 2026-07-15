@@ -207,18 +207,21 @@ func (r *ModuleRef) Generate(args ...string) error {
 // Tidy runs `go mod tidy` in the module.
 func (r *ModuleRef) Tidy() error { return r.Go("mod", "tidy") }
 
-// CommandInfo describes a registered custom command.
+// CommandInfo describes a registered custom command. Override is set when the
+// command intentionally replaces a builtin of the same name.
 type CommandInfo struct {
-	Name  string `json:"name"`
-	Short string `json:"short"`
+	Name     string `json:"name"`
+	Short    string `json:"short"`
+	Override bool   `json:"override,omitempty"`
 }
 
-// Manifest is what gw reads to learn an extension's commands, hooks, and how
-// many build providers it registers.
+// Manifest is what gw reads to learn an extension's commands, hooks, build
+// providers, and any builtins it hides.
 type Manifest struct {
 	Commands  []CommandInfo `json:"commands"`
 	Hooks     []string      `json:"hooks"`
 	Providers int           `json:"providers"`
+	Hidden    []string      `json:"hidden,omitempty"`
 }
 
 // BuildInfo is what a Provide function contributes to gw's commands, computed at
@@ -244,11 +247,26 @@ var (
 	commands  []commandReg
 	hooks     = map[string][]func(*Context) error{}
 	providers []func(*Context) (BuildInfo, error)
+	hidden    []string
 )
 
-// Command registers a custom subcommand, invocable as `gw <name>`.
+// Command registers a custom subcommand, invocable as `gw <name>`. A name that
+// collides with a builtin is ignored by gw; use Override to replace a builtin.
 func Command(name, short string, run func(*Context) error) {
-	commands = append(commands, commandReg{CommandInfo{name, short}, run})
+	commands = append(commands, commandReg{CommandInfo{Name: name, Short: short}, run})
+}
+
+// Override registers a subcommand that intentionally replaces the builtin of the
+// same name (e.g. to wrap `gw test` with setup/teardown). Unlike Command, gw
+// removes the shadowed builtin instead of skipping the extension command.
+func Override(name, short string, run func(*Context) error) {
+	commands = append(commands, commandReg{CommandInfo{Name: name, Short: short, Override: true}, run})
+}
+
+// Hide removes the named builtin commands from gw's command tree for this
+// workspace. Hiding `ext` still leaves extension auto-build intact.
+func Hide(names ...string) {
+	hidden = append(hidden, names...)
 }
 
 // Hook registers a function to run at a lifecycle event (e.g. "pre-sync",
@@ -308,6 +326,7 @@ func emitManifest() {
 	for e := range hooks {
 		m.Hooks = append(m.Hooks, e)
 	}
+	m.Hidden = dedupSorted(hidden)
 	sort.Strings(m.Hooks)
 	sort.Slice(m.Commands, func(i, j int) bool { return m.Commands[i].Name < m.Commands[j].Name })
 	if err := json.NewEncoder(os.Stdout).Encode(m); err != nil {
@@ -380,7 +399,11 @@ func contextFromEnv() *Context {
 func printHuman() {
 	fmt.Println("gw extension. Registered:")
 	for _, c := range commands {
-		fmt.Printf("  command  %-16s %s\n", c.info.Name, c.info.Short)
+		kind := "command"
+		if c.info.Override {
+			kind = "override"
+		}
+		fmt.Printf("  %s  %-16s %s\n", kind, c.info.Name, c.info.Short)
 	}
 	evs := make([]string, 0, len(hooks))
 	for e := range hooks {
@@ -393,7 +416,25 @@ func printHuman() {
 	if len(providers) > 0 {
 		fmt.Printf("  provider %d build provider(s)\n", len(providers))
 	}
+	for _, h := range dedupSorted(hidden) {
+		fmt.Printf("  hides    %s\n", h)
+	}
 	fmt.Println("\nThis binary is driven by gw; run `gw <command>` instead.")
+}
+
+// dedupSorted returns the sorted, de-duplicated, non-empty members of in.
+func dedupSorted(in []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range in {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func fail(msg string) {

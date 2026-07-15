@@ -138,7 +138,11 @@ func newExtListCmd() *cobra.Command {
 			}
 			out := cmd.OutOrStdout()
 			for _, c := range m.Commands {
-				fmt.Fprintf(out, "command  %-16s %s\n", c.Name, c.Short)
+				kind := "command"
+				if c.Override {
+					kind = "override"
+				}
+				fmt.Fprintf(out, "%s  %-16s %s\n", kind, c.Name, c.Short)
 			}
 			for _, h := range m.Hooks {
 				fmt.Fprintf(out, "hook     %s\n", h)
@@ -146,14 +150,19 @@ func newExtListCmd() *cobra.Command {
 			if m.Providers > 0 {
 				fmt.Fprintf(out, "provider %d build provider(s)\n", m.Providers)
 			}
+			for _, h := range m.Hidden {
+				fmt.Fprintf(out, "hides    %s\n", h)
+			}
 			return nil
 		},
 	}
 }
 
-// attachExtCommands registers each extension command as a dynamic subcommand,
-// unless a builtin already claims that name. Best-effort: on any failure it warns
-// and leaves the builtin command tree intact.
+// attachExtCommands wires an extension's commands into the tree. It first hides
+// any builtins the extension asks to hide, then adds each extension command —
+// replacing a colliding builtin only when the command is an explicit Override,
+// otherwise skipping it. Best-effort: on any failure it warns and leaves the
+// builtin command tree intact.
 func attachExtCommands(rootCmd *cobra.Command) {
 	root, err := earlyResolveRoot()
 	if err != nil || !ext.Exists(root) {
@@ -164,14 +173,24 @@ func attachExtCommands(rootCmd *cobra.Command) {
 		fmt.Fprintf(os.Stderr, "gw: extension: %v\n", err)
 		return
 	}
-	builtin := map[string]bool{}
+	builtin := map[string]*cobra.Command{}
 	for _, c := range rootCmd.Commands() {
-		builtin[c.Name()] = true
+		builtin[c.Name()] = c
+	}
+	for _, name := range m.Hidden {
+		if c, ok := builtin[name]; ok {
+			rootCmd.RemoveCommand(c)
+			delete(builtin, name)
+		}
 	}
 	for _, ci := range m.Commands {
-		if builtin[ci.Name] {
-			fmt.Fprintf(os.Stderr, "gw: extension command %q shadowed by builtin; skipped\n", ci.Name)
-			continue
+		if c, clash := builtin[ci.Name]; clash {
+			if !ci.Override {
+				fmt.Fprintf(os.Stderr, "gw: extension command %q shadowed by builtin; skipped (use gwext.Override to replace)\n", ci.Name)
+				continue
+			}
+			rootCmd.RemoveCommand(c)
+			delete(builtin, ci.Name)
 		}
 		name := ci.Name
 		rootCmd.AddCommand(&cobra.Command{

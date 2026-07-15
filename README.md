@@ -169,9 +169,14 @@ wins). `Vars` become `-ldflags "-X key=value"` and `Tags` become `-tags` on the
 compiling commands. Providers may print freely — that goes to stderr, never the
 result.
 
+**Overriding builtins:** a plain `gwext.Command` whose name collides with a
+builtin is ignored (builtins win). To *replace* one — e.g. wrap `gw test` with
+setup/teardown — register it with `gwext.Override("test", ...)`, and gw removes
+the shadowed builtin. `gwext.Hide("tidy", "generate")` drops builtins entirely.
+`gw ext list` shows which commands override and which builtins are hidden.
+
 **Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `build`, `test`, `vet`,
-`generate`, `tidy` (e.g. `post-sync`, `pre-test`). Custom command names that collide with a builtin
-are ignored (builtins always win). The compiled binary is cached under `.gw/bin/`
+`generate`, `tidy` (e.g. `post-sync`, `pre-test`). The compiled binary is cached under `.gw/bin/`
 (git-ignored) and rebuilt only when `.gw` sources change.
 
 ## License
