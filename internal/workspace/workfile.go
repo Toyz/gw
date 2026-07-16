@@ -3,6 +3,7 @@ package workspace
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -128,6 +129,20 @@ func pickGoVersion(mods []Module) string {
 	}
 	if best != "" {
 		return best
+	}
+	return UserGoVersion()
+}
+
+// UserGoVersion returns the user's `go` toolchain version without the "go"
+// prefix (e.g. "1.25.0"), read from `go env GOVERSION` — so files gw generates
+// (go.work, the scaffolded .gw/go.mod) match the Go the user actually runs, not
+// the version gw itself was built with. Falls back to gw's own build version if
+// `go` can't be queried.
+func UserGoVersion() string {
+	if out, err := exec.Command("go", "env", "GOVERSION").Output(); err == nil {
+		if v := strings.TrimSpace(string(out)); v != "" {
+			return strings.TrimPrefix(v, "go")
+		}
 	}
 	return strings.TrimPrefix(runtime.Version(), "go")
 }

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -13,9 +12,6 @@ import (
 	"github.com/toyz/gw/internal/ext"
 	"github.com/toyz/gw/internal/workspace"
 )
-
-// goDirective returns the running toolchain version (e.g. "go1.26.0").
-func goDirective() string { return runtime.Version() }
 
 // toGwextModules converts discovered modules into the SDK's wire type.
 func toGwextModules(mods []workspace.Module) []gwext.Module {
@@ -85,7 +81,7 @@ func newExtInitCmd() *cobra.Command {
 			if err := os.MkdirAll(dir, 0o755); err != nil {
 				return err
 			}
-			goVer := strings.TrimPrefix(goDirective(), "go")
+			goVer := workspace.UserGoVersion()
 			if err := os.WriteFile(filepath.Join(dir, "go.mod"),
 				fmt.Appendf(nil, "module gwext.local\n\ngo %s\n", goVer), 0o644); err != nil {
 				return err
@@ -307,14 +303,23 @@ import (
 	"github.com/toyz/gw/gwext"
 )
 
+// .gw/build.go — a compiled Go extension for this workspace.
+// Full API: https://pkg.go.dev/github.com/toyz/gw/gwext
 func main() {
-	// Custom command: invoke as ` + "`gw hello`" + `.
-	gwext.Command("hello", "example custom command", func(c *gwext.Context) error {
-		fmt.Printf("hello from %d module(s) at %s\n", len(c.Modules), c.Root)
-		return nil
-	})
+	// A custom command with a typed flag (short form -n):
+	//   gw greet   |   gw greet --name gopher   |   gw greet -n gopher
+	gwext.Command("greet", "example custom command",
+		func(c *gwext.Context) error {
+			fmt.Printf("hello %s (%d module(s) at %s)\n",
+				c.String("name"), len(c.Modules), c.Root)
+			// c.Mod(path) is a typed handle over a module:
+			//   c.Mod("example.com/api").Build()    // go build ./...
+			//   c.Mod("web").Tool("npm").Run("ci")  // any toolchain
+			return nil
+		},
+		gwext.Str("name", "world", "who to greet").Alias("n"))
 
-	// Lifecycle hook: runs after ` + "`gw sync`" + `.
+	// A lifecycle hook: runs after ` + "`gw sync`" + `.
 	gwext.Hook("post-sync", func(c *gwext.Context) error {
 		fmt.Println("post-sync: go.work updated")
 		return nil
