@@ -51,6 +51,47 @@ function navItems(
   ];
 }
 
+// mobileMenu renders the dropdown panel: full-width nav links, then a divider
+// and a row of meta chips (GitHub, star count, release tag).
+function mobileMenu(
+  active: (to: string) => string,
+  version: string,
+  stars: number,
+) {
+  return (
+    <div class="nav-drop">
+      <loom-link to="/" class={"m-link " + active("/")}>
+        Overview
+      </loom-link>
+      <loom-link to="/extensions" class={"m-link " + active("/extensions")}>
+        Extensions
+      </loom-link>
+      <loom-link to="/ci" class={"m-link " + active("/ci")}>
+        CI
+      </loom-link>
+      <div class="m-meta">
+        <a class="m-chip" href={REPO}>
+          <loom-icon name="github" size={15} /> GitHub
+        </a>
+        {stars > 0 ? (
+          <a class="m-chip" href={REPO + "/stargazers"}>
+            <loom-icon name="star" size={14} /> {fmtCount(stars)}
+          </a>
+        ) : (
+          ""
+        )}
+        {version ? (
+          <a class="m-chip" href={REPO + "/releases/latest"}>
+            <loom-icon name="git-branch" size={14} /> {version}
+          </a>
+        ) : (
+          ""
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Shell: sticky header with route-aware nav (a hamburger on mobile), the routed
 // outlet, and a footer.
 @component("gw-site")
@@ -105,9 +146,7 @@ export class GwSite extends LoomElement {
             )}
           </div>
           {this.isMobile && this.menuOpen ? (
-            <div class="wrap">
-              <div class="nav-drop">{navItems(active, version, stars)}</div>
-            </div>
+            <div class="wrap">{mobileMenu(active, version, stars)}</div>
           ) : (
             ""
           )}

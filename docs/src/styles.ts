@@ -83,26 +83,60 @@ export const base = css`
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: none;
+    width: 40px;
+    height: 40px;
+    background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 9px;
     color: var(--text);
-    padding: 0.35rem;
     cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .burger:hover {
+    border-color: #2c343e;
   }
   .nav-drop {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 0.35rem 0 1.15rem;
-    font-size: 0.95rem;
+    padding: 0.35rem 0 1.35rem;
   }
-  .nav-drop loom-link::part(anchor) {
+  .m-link::part(anchor) {
+    display: block;
+    padding: 0.72rem 0.1rem;
+    font-family: var(--mono);
+    font-size: 1.02rem;
     color: var(--dim);
+    transition: color 0.15s;
   }
-  .nav-drop loom-link.active::part(anchor) {
+  .m-link.active::part(anchor) {
     color: var(--amber);
+  }
+  .m-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1rem;
+    padding-top: 1.15rem;
+    border-top: 1px solid var(--border-soft);
+  }
+  .m-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    font-family: var(--mono);
+    font-size: 0.84rem;
+    color: var(--dim);
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .m-chip loom-icon {
+    color: var(--amber);
+  }
+  .m-chip:hover {
+    color: var(--text);
+    border-color: #2c343e;
   }
   .nav {
     display: flex;

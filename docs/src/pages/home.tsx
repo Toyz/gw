@@ -115,18 +115,18 @@ const homeStyles = css`
   .cp {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
     border: 1px solid var(--border);
     background: var(--panel-2);
     color: var(--dim);
-    border-radius: 7px;
-    padding: 0.35rem 0.6rem;
-    font-size: 0.78rem;
+    border-radius: 8px;
     cursor: pointer;
     transition:
       color 0.15s,
       border-color 0.15s;
-    font-family: inherit;
   }
   .cp:hover {
     color: var(--text);
@@ -353,9 +353,9 @@ export class PageHome extends LoomElement {
               <button
                 class={this.copied ? "cp ok" : "cp"}
                 onClick={() => this.copyInstall()}
+                aria-label={this.copied ? "Copied" : "Copy install command"}
               >
-                <loom-icon name={this.copied ? "check" : "copy"} size={14} />
-                {this.copied ? "copied" : "copy"}
+                <loom-icon name={this.copied ? "check" : "copy"} size={15} />
               </button>
             </div>
             <div class="badges">
