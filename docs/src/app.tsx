@@ -146,7 +146,9 @@ export class GwSite extends LoomElement {
             )}
           </div>
           {this.isMobile && this.menuOpen ? (
-            <div class="wrap">{mobileMenu(active, version, stars)}</div>
+            <div class="drop">
+              <div class="wrap">{mobileMenu(active, version, stars)}</div>
+            </div>
           ) : (
             ""
           )}

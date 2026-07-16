@@ -91,14 +91,15 @@ const homeStyles = css`
     color: var(--text);
   }
   .install {
-    display: inline-flex;
+    display: flex;
+    width: fit-content;
+    max-width: 100%;
     align-items: center;
-    gap: 0.9rem;
+    gap: 0.6rem;
     padding: 0.5rem 0.55rem 0.5rem 1rem;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: rgba(15, 19, 25, 0.9);
-    max-width: 100%;
   }
   .install code {
     min-width: 0;

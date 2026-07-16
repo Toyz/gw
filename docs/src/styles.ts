@@ -85,20 +85,42 @@ export const base = css`
     justify-content: center;
     width: 40px;
     height: 40px;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    color: var(--text);
+    margin-right: -0.5rem;
+    background: none;
+    border: none;
+    color: var(--dim);
     cursor: pointer;
-    transition: border-color 0.15s;
+    transition: color 0.15s;
   }
   .burger:hover {
-    border-color: #2c343e;
+    color: var(--text);
+  }
+  /* The menu overlays content (absolute) instead of pushing it down, and fades
+     in — anchored to the sticky header. */
+  .drop {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #0c0e12;
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 22px 44px -26px rgba(0, 0, 0, 0.95);
+    animation: dropIn 0.18s ease;
+  }
+  @keyframes dropIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   .nav-drop {
     display: flex;
     flex-direction: column;
-    padding: 0.35rem 0 1.35rem;
+    padding: 0.6rem 0 1.35rem;
   }
   .m-link::part(anchor) {
     display: block;
