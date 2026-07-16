@@ -387,31 +387,25 @@ export class PageExtensions extends LoomElement {
               <p>
                 A plain <code>Command</code> that collides with a builtin is
                 ignored. To <b>extend</b> one, use <code>gwext.Override</code> —
-                but decorate, don't shadow: handle your added flag, then{" "}
-                <code>c.Builtin(name, args...)</code> to fall through to the
-                original. The overridden verb becomes a <b>superset</b>, never a
-                different thing.
+                decorate, don't shadow: handle your flag, then{" "}
+                <code>c.Builtin(name, args...)</code> falls through to the
+                original, making the verb a <b>superset</b>. It's surfaced, not
+                silent — <code>gw --help</code> and <code>gw ext list</code> flag
+                it <code>(overrides builtin)</code>; <code>gwext.Hide</code>
+                drops a builtin entirely.
               </p>
               <p>
-                Overriding a verb that forwards flags to the go tool —{" "}
-                <code>build</code>, <code>test</code>, <code>vet</code>,{" "}
-                <code>run</code>? Chain <code>.Passthrough()</code> so flags you
-                didn't declare (<code>-p</code>, <code>-race</code>) pass
-                straight through to <code>c.Builtin</code> instead of erroring,
-                while your own flags still parse.
-              </p>
-              <p>
-                Overrides are <b>surfaced, never silent</b>:{" "}
-                <code>gw --help</code> labels the verb{" "}
-                <code>(overrides builtin)</code> and <code>gw ext list</code>{" "}
-                marks it <code>override</code>. <code>gwext.Hide</code> drops
-                builtins from the tree entirely.
+                Overriding a verb that forwards flags to the go tool
+                (<code>build</code>/<code>test</code>/<code>vet</code>/
+                <code>run</code>)? Chain <code>.Passthrough()</code> so
+                undeclared flags (<code>-p</code>, <code>-race</code>) reach{" "}
+                <code>c.Builtin</code> untouched while your own still parse.
               </p>
               <div class="note">
-                <b>No recursion.</b> <code>c.Builtin</code> runs gw's real
-                builtin in a child with extensions off — so the override can't
-                re-enter itself. Lifecycle hooks are suppressed during that
-                fall-through; providers and env still apply.
+                <b>No recursion.</b> <code>c.Builtin</code> runs the real builtin
+                in a child with extensions off, so an override can't re-enter
+                itself. Hooks are suppressed on that fall-through; providers and
+                env still apply.
               </div>
             </div>
             {codeWin(".gw/build.go", OVERRIDE_SAMPLE)}
