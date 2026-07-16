@@ -1,6 +1,7 @@
 import { LoomElement, component, css, inject, styles } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
 import { yamlLines } from "../highlight";
+import { REPO } from "../data";
 import { RepoService } from "../repo";
 import { base } from "../styles";
 
@@ -88,11 +89,12 @@ const ciStyles = css`
     font-weight: 400;
   }
   h1 {
-    font-size: clamp(2.6rem, 5vw, 3.7rem);
-    line-height: 1.02;
+    font-size: clamp(2rem, 6vw, 3.7rem);
+    line-height: 1.04;
     letter-spacing: -0.035em;
     font-weight: 680;
     margin: 0 0 1.2rem;
+    overflow-wrap: break-word;
   }
   h1 em {
     font-style: normal;
@@ -120,6 +122,31 @@ const ciStyles = css`
   .badge b {
     color: var(--green);
     font-weight: 400;
+  }
+  .herobadges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.9rem 1.3rem;
+  }
+  .cistatus {
+    color: var(--dim);
+    transition: color 0.15s;
+  }
+  .cistatus:hover {
+    color: var(--text);
+  }
+  .cidot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .cidot.pass {
+    background: var(--green);
+  }
+  .cidot.fail {
+    background: var(--rose);
   }
 
   .inputs {
@@ -279,10 +306,27 @@ export class PageCI extends LoomElement {
               fail the build on a stale <code>go.work</code>, version drift, or
               un-hoisted replaces.
             </p>
-            <span class="badge">
-              <loom-icon name="check" size={13} color="var(--green)" /> on the
-              GitHub Marketplace
-            </span>
+            <div class="herobadges">
+              <span class="badge">
+                <loom-icon name="check" size={13} color="var(--green)" /> on the
+                GitHub Marketplace
+              </span>
+              {this.repo.ci ? (
+                <a
+                  class="badge cistatus"
+                  href={REPO + "/actions/workflows/ci.yml"}
+                >
+                  <span
+                    class={
+                      "cidot " + (this.repo.ci === "success" ? "pass" : "fail")
+                    }
+                  />
+                  CI {this.repo.ci === "success" ? "passing" : this.repo.ci}
+                </a>
+              ) : (
+                ""
+              )}
+            </div>
           </div>
           {codeWin(".github/workflows/ci.yml", MINIMAL)}
         </div>

@@ -69,6 +69,41 @@ export const base = css`
       display: none;
     }
   }
+  /* Mobile: tighter gutters; the nav collapses to a hamburger (rendered via the
+     @media reactive breakpoint), so nothing forces the page past the viewport. */
+  @media (max-width: 640px) {
+    .wrap {
+      padding: 0 1.25rem;
+    }
+    section {
+      padding: 2.75rem 0;
+    }
+  }
+  .burger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 0.35rem;
+    cursor: pointer;
+  }
+  .nav-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.35rem 0 1.15rem;
+    font-size: 0.95rem;
+  }
+  .nav-drop loom-link::part(anchor) {
+    color: var(--dim);
+  }
+  .nav-drop loom-link.active::part(anchor) {
+    color: var(--amber);
+  }
   .nav {
     display: flex;
     align-items: center;
@@ -170,6 +205,7 @@ export const base = css`
 
   /* window chrome (terminal + code) */
   .win {
+    min-width: 0; /* let it shrink inside grid/flex; long lines scroll in the body */
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--panel);

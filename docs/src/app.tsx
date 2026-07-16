@@ -7,17 +7,60 @@ import {
   reactive,
   styles,
 } from "@toyz/loom";
+import { media } from "@toyz/loom/element";
 import "@toyz/loom/router"; // registers <loom-outlet> and <loom-link>
 import { RouteChanged } from "@toyz/loom/router";
 import { REPO, fmtCount } from "./data";
 import { RepoService } from "./repo";
 import { base } from "./styles";
 
-// Shell: sticky header with route-aware nav, the routed outlet, and a footer.
+// navItems renders the nav links + version pill + GitHub star button. Shared by
+// the desktop bar and the mobile dropdown — only one is rendered at a time.
+function navItems(
+  active: (to: string) => string,
+  version: string,
+  stars: number,
+) {
+  return [
+    <loom-link to="/" class={active("/")}>
+      Overview
+    </loom-link>,
+    <loom-link to="/extensions" class={active("/extensions")}>
+      Extensions
+    </loom-link>,
+    <loom-link to="/ci" class={active("/ci")}>
+      CI
+    </loom-link>,
+    version ? (
+      <a class="ver" href={REPO + "/releases/latest"}>
+        {version}
+      </a>
+    ) : (
+      ""
+    ),
+    <a class="gh" href={REPO}>
+      <loom-icon name="github" size={16} /> GitHub
+      {stars > 0 ? (
+        <span class="stars">
+          <loom-icon name="star" size={13} /> {fmtCount(stars)}
+        </span>
+      ) : (
+        ""
+      )}
+    </a>,
+  ];
+}
+
+// Shell: sticky header with route-aware nav (a hamburger on mobile), the routed
+// outlet, and a footer.
 @component("gw-site")
 @styles(base)
 export class GwSite extends LoomElement {
   @reactive accessor path = "/";
+  @reactive accessor menuOpen = false;
+  // Reactive breakpoint — flips the header between the inline bar and a
+  // hamburger + dropdown, updating live on resize.
+  @media("(max-width: 640px)") accessor isMobile = false;
   // Singleton service; its start() ran (and awaited the fetches) before this
   // component ever rendered, so tag/stars are already populated below.
   @inject(RepoService) accessor repo!: RepoService;
@@ -32,6 +75,7 @@ export class GwSite extends LoomElement {
   @on(RouteChanged)
   onRoute(e: RouteChanged) {
     this.path = e.path;
+    this.menuOpen = false; // close the mobile menu on navigation
   }
 
   update() {
@@ -47,35 +91,26 @@ export class GwSite extends LoomElement {
               <b>gw</b>
               <span class="tag">go.work manager</span>
             </loom-link>
-            <div class="nav">
-              <loom-link to="/" class={active("/")}>
-                Overview
-              </loom-link>
-              <loom-link to="/extensions" class={active("/extensions")}>
-                Extensions
-              </loom-link>
-              <loom-link to="/ci" class={active("/ci")}>
-                CI
-              </loom-link>
-              {version ? (
-                <a class="ver" href={REPO + "/releases/latest"}>
-                  {version}
-                </a>
-              ) : (
-                ""
-              )}
-              <a class="gh" href={REPO}>
-                <loom-icon name="github" size={16} /> GitHub
-                {stars > 0 ? (
-                  <span class="stars">
-                    <loom-icon name="star" size={13} /> {fmtCount(stars)}
-                  </span>
-                ) : (
-                  ""
-                )}
-              </a>
-            </div>
+            {this.isMobile ? (
+              <button
+                class="burger"
+                aria-label="Menu"
+                aria-expanded={this.menuOpen ? "true" : "false"}
+                onClick={() => (this.menuOpen = !this.menuOpen)}
+              >
+                <loom-icon name={this.menuOpen ? "x" : "menu"} size={20} />
+              </button>
+            ) : (
+              <div class="nav">{navItems(active, version, stars)}</div>
+            )}
           </div>
+          {this.isMobile && this.menuOpen ? (
+            <div class="wrap">
+              <div class="nav-drop">{navItems(active, version, stars)}</div>
+            </div>
+          ) : (
+            ""
+          )}
         </header>
 
         <loom-outlet></loom-outlet>

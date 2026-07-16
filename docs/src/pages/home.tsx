@@ -68,11 +68,12 @@ const homeStyles = css`
     font-weight: 400;
   }
   h1 {
-    font-size: clamp(2.6rem, 5vw, 3.7rem);
-    line-height: 1.02;
+    font-size: clamp(2rem, 6vw, 3.7rem);
+    line-height: 1.04;
     letter-spacing: -0.035em;
     font-weight: 680;
     margin: 0 0 1.2rem;
+    overflow-wrap: break-word;
   }
   h1 em {
     font-style: normal;
@@ -100,6 +101,7 @@ const homeStyles = css`
     max-width: 100%;
   }
   .install code {
+    min-width: 0;
     font-family: var(--mono);
     font-size: 0.9rem;
     white-space: nowrap;
@@ -136,7 +138,8 @@ const homeStyles = css`
   }
   .badges {
     display: flex;
-    gap: 1.2rem;
+    flex-wrap: wrap;
+    gap: 0.7rem 1.2rem;
     margin-top: 1.6rem;
     font-family: var(--mono);
     font-size: 0.78rem;

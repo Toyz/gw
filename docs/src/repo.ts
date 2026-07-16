@@ -11,11 +11,25 @@ export class RepoService implements LoomLifecycle<"start"> {
   @persist({ key: "gw:tag", storage: new SessionAdapter() }) accessor tag = "";
   @persist({ key: "gw:stars", storage: new SessionAdapter() }) accessor stars = 0;
   @persist({ key: "gw:forks", storage: new SessionAdapter() }) accessor forks = 0;
+  // Latest ci.yml run on main: "success" | "failure" | "" (unknown / running).
+  @persist({ key: "gw:ci", storage: new SessionAdapter() }) accessor ci = "";
 
-  // LoomLifecycle.start — the two requests run in parallel, so boot waits on the
-  // slower of the two, not their sum. Each is bounded by a timeout in get().
+  // LoomLifecycle.start — the requests run in parallel, so boot waits on the
+  // slowest, not their sum. Each is bounded by a timeout in get().
   async start(): Promise<void> {
-    await Promise.all([this.loadRelease(), this.loadRepo()]);
+    await Promise.all([this.loadRelease(), this.loadRepo(), this.loadCI()]);
+  }
+
+  private async loadCI(): Promise<void> {
+    const d = await this.get(
+      "/actions/workflows/ci.yml/runs?branch=main&per_page=1",
+    );
+    const runs = d?.workflow_runs;
+    if (Array.isArray(runs) && runs[0]) {
+      const run = runs[0] as Record<string, unknown>;
+      // conclusion is set once completed; empty while a run is in progress.
+      this.ci = typeof run.conclusion === "string" ? run.conclusion : "";
+    }
   }
 
   private async loadRelease(): Promise<void> {
