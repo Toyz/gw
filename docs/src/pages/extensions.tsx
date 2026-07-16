@@ -97,14 +97,14 @@ function codeWin(title: string, src: string) {
 const extStyles = css`
   .hero {
     display: grid;
-    grid-template-columns: 1.02fr 1.08fr;
+    grid-template-columns: minmax(0, 1.02fr) minmax(0, 1.08fr);
     gap: 3.5rem;
     align-items: center;
     padding: 5rem 0 4.5rem;
   }
   @media (max-width: 860px) {
     .hero {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 2.5rem;
       padding: 3rem 0;
     }
@@ -142,13 +142,13 @@ const extStyles = css`
 
   .grid2 {
     display: grid;
-    grid-template-columns: 0.92fr 1.08fr;
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
     gap: 2.6rem;
     align-items: start;
   }
   @media (max-width: 820px) {
     .grid2 {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 1.6rem;
     }
   }

@@ -67,14 +67,14 @@ function codeWin(title: string, src: string) {
 const ciStyles = css`
   .hero {
     display: grid;
-    grid-template-columns: 1fr 1.1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
     gap: 3.5rem;
     align-items: center;
     padding: 5rem 0 4.5rem;
   }
   @media (max-width: 860px) {
     .hero {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 2.5rem;
       padding: 3rem 0;
     }
@@ -151,12 +151,12 @@ const ciStyles = css`
 
   .inputs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
   }
   @media (max-width: 760px) {
     .inputs {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
   .input {
@@ -251,7 +251,7 @@ const ciStyles = css`
 
   .recipe {
     display: grid;
-    grid-template-columns: 0.8fr 1.2fr;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
     gap: 2.6rem;
     align-items: center;
     margin-bottom: 2.2rem;
@@ -261,7 +261,7 @@ const ciStyles = css`
   }
   @media (max-width: 820px) {
     .recipe {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 1.4rem;
     }
   }

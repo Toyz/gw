@@ -46,14 +46,14 @@ function cmdGroup(g: (typeof COMMAND_GROUPS)[number]) {
 const homeStyles = css`
   .hero {
     display: grid;
-    grid-template-columns: 1.02fr 1.08fr;
+    grid-template-columns: minmax(0, 1.02fr) minmax(0, 1.08fr);
     gap: 3.5rem;
     align-items: center;
     padding: 5rem 0 4.5rem;
   }
   @media (max-width: 860px) {
     .hero {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 2.5rem;
       padding: 3rem 0;
     }
@@ -163,17 +163,17 @@ const homeStyles = css`
 
   .features {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
   }
   @media (max-width: 860px) {
     .features {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
   }
   @media (max-width: 560px) {
     .features {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
   .feat {
@@ -245,7 +245,7 @@ const homeStyles = css`
     );
     padding: 2rem 2.2rem;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 0 3.5rem;
   }
   .col > .cmd-group + .cmd-group {
@@ -253,7 +253,7 @@ const homeStyles = css`
   }
   @media (max-width: 700px) {
     .panel {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       padding: 1.6rem;
       gap: 2rem 0;
     }
@@ -288,13 +288,13 @@ const homeStyles = css`
 
   .ext {
     display: grid;
-    grid-template-columns: 0.78fr 1.22fr;
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
     gap: 3rem;
     align-items: center;
   }
   @media (max-width: 860px) {
     .ext {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 2rem;
     }
   }
