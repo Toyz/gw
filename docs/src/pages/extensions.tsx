@@ -60,12 +60,16 @@ gwext.ProvideEach(
         return gwext.BuildInfo{}, nil
     })`;
 
-const OVERRIDE_SAMPLE = `// Replace a builtin — gw removes the shadowed one.
-gwext.Override("test", "with a db",
+const OVERRIDE_SAMPLE = `// Decorate, don't shadow: add a flag, else
+// fall through to the real builtin unchanged.
+gwext.Override("run", "adds --mode=all",
     func(c *gwext.Context) error {
-        startDB(); defer stopDB()
-        return c.Mod("api").Test()
-    })
+        if c.Bool("mode-all") {
+            return launchAll(c)   // new behavior
+        }
+        return c.Builtin("run", c.Args...) // original
+    },
+    gwext.Bool("mode-all", "orchestrated launch"))
 
 // Or drop a builtin entirely.
 gwext.Hide("generate")`;
@@ -359,10 +363,25 @@ export class PageExtensions extends LoomElement {
             <div class="doc">
               <p>
                 A plain <code>Command</code> that collides with a builtin is
-                ignored. To <b>replace</b> one, use <code>gwext.Override</code> —
-                gw removes the shadowed builtin. <code>gwext.Hide</code> drops
+                ignored. To <b>extend</b> one, use <code>gwext.Override</code> —
+                but decorate, don't shadow: handle your added flag, then{" "}
+                <code>c.Builtin(name, args...)</code> to fall through to the
+                original. The overridden verb becomes a <b>superset</b>, never a
+                different thing.
+              </p>
+              <p>
+                Overrides are <b>surfaced, never silent</b>:{" "}
+                <code>gw --help</code> labels the verb{" "}
+                <code>(overrides builtin)</code> and <code>gw ext list</code>{" "}
+                marks it <code>override</code>. <code>gwext.Hide</code> drops
                 builtins from the tree entirely.
               </p>
+              <div class="note">
+                <b>No recursion.</b> <code>c.Builtin</code> runs gw's real
+                builtin in a child with extensions off — so the override can't
+                re-enter itself. Lifecycle hooks are suppressed during that
+                fall-through; providers and env still apply.
+              </div>
             </div>
             {codeWin(".gw/build.go", OVERRIDE_SAMPLE)}
           </div>

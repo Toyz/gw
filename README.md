@@ -219,6 +219,15 @@ builtin)` and `gw ext list` marks it `override`, so anyone can see a builtin is
 extended here. `gwext.Hide("tidy", "generate")` drops builtins entirely (also
 listed by `gw ext list`).
 
+Because the call-through child runs with extensions off, a `c.Builtin`
+fall-through executes the *pure* builtin: lifecycle **hooks are suppressed**
+during it (this is what prevents an override from recursing) — build/test
+providers and env injection still apply. So `gw build` invoked directly fires
+`pre-/post-build` hooks, while a `build` override that calls `c.Builtin("build")`
+does not; run any such logic in the override itself. Works for every builtin —
+flag-parsed (`run`), go-passthrough (`build`/`test`/`vet`/`generate`/`tidy`),
+and the rest (`sync`/`lint`/`doctor`/`graph`/`list`/...).
+
 **Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `build`, `test`, `vet`,
 `generate`, `tidy` (e.g. `post-sync`, `pre-test`). The compiled binary is cached under `.gw/bin/`
 (git-ignored) and rebuilt only when `.gw` sources change.
