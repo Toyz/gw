@@ -62,7 +62,9 @@ func newRootCmd() *cobra.Command {
 // Execute runs the gw CLI.
 func Execute() {
 	root := newRootCmd()
-	attachExtCommands(root)
+	if extEnabled() {
+		attachExtCommands(root)
+	}
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "gw:", err)
 		os.Exit(1)

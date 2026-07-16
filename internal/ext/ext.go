@@ -162,11 +162,16 @@ func capture(bin string, argv, environ []string, stdin io.Reader) ([]byte, error
 }
 
 // env is the environment handed to the extension: the ambient environment plus
-// GW_ROOT and any workspace-config overrides (extra). Only small, bounded values
-// belong here; the module set is streamed over stdin (see modulesReader) because
-// a large workspace would exceed the OS per-variable size limit.
+// GW_ROOT, GW_BIN (gw's own path, so extensions can call c.Builtin), and any
+// workspace-config overrides (extra). Only small, bounded values belong here; the
+// module set is streamed over stdin (see modulesReader) because a large workspace
+// would exceed the OS per-variable size limit.
 func env(root string, extra []string) []string {
-	return append(append(os.Environ(), "GW_ROOT="+root), extra...)
+	e := append(os.Environ(), "GW_ROOT="+root)
+	if self, err := os.Executable(); err == nil {
+		e = append(e, "GW_BIN="+self)
+	}
+	return append(e, extra...)
 }
 
 // modulesReader marshals mods into the JSON payload the SDK reads from stdin.

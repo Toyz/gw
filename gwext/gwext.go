@@ -115,6 +115,34 @@ func (c *Context) Go(dir string, args ...string) error {
 	return c.Run(dir, "go", args...)
 }
 
+// Builtin invokes gw's own builtin command of the given name, streaming stdio.
+// It is the call-through primitive for Override handlers: decorate a builtin by
+// handling your added flags, then fall through to the original behavior with
+// Builtin. Extensions are disabled in the child process, so an Override of "run"
+// that calls c.Builtin("run", ...) reaches the real builtin without re-entering
+// itself. Returns an error if gw did not advertise its own path (GW_BIN).
+func (c *Context) Builtin(name string, args ...string) error {
+	bin := os.Getenv("GW_BIN")
+	if bin == "" {
+		return fmt.Errorf("gwext: GW_BIN not set; cannot call builtin %q", name)
+	}
+	argv := []string{}
+	if c.Root != "" {
+		argv = append(argv, "-C", c.Root)
+	}
+	argv = append(argv, name)
+	argv = append(argv, args...)
+	cmd := exec.Command(bin, argv...)
+	cmd.Dir = c.Root
+	// GW_SKIP_EXT tells the child gw to run its pure builtin tree: no extension
+	// commands, no overrides, no hooks — which prevents this override recursing.
+	cmd.Env = append(os.Environ(), "GW_SKIP_EXT=1")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // CommandInfo describes a registered custom command. Override is set when the
 // command intentionally replaces a builtin of the same name.
 type CommandInfo struct {

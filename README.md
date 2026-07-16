@@ -193,11 +193,31 @@ wins). `Vars` become `-ldflags "-X key=value"` and `Tags` become `-tags` on the
 compiling commands. Providers may print freely — that goes to stderr, never the
 result. `gwext.Git(dir)` returns the raw `GitInfo` if you want to build your own.
 
-**Overriding builtins:** a plain `gwext.Command` whose name collides with a
-builtin is ignored (builtins win). To *replace* one — e.g. wrap `gw test` with
-setup/teardown — register it with `gwext.Override("test", ...)`, and gw removes
-the shadowed builtin. `gwext.Hide("tidy", "generate")` drops builtins entirely.
-`gw ext list` shows which commands override and which builtins are hidden.
+**Overriding builtins — decorate, don't shadow.** A plain `gwext.Command` whose
+name collides with a builtin is ignored (builtins win). To extend one, register
+`gwext.Override("run", ...)`. The right pattern is a *superset*: handle your added
+flag, then call through to the original with `c.Builtin` so the vanilla
+invocation behaves exactly as before. Never make the override a silent swap that
+breaks the original — extend the verb, don't replace its meaning.
+
+```go
+gwext.Override("run", "run across modules; adds --mode=all launcher",
+	func(c *gwext.Context) error {
+		if c.Bool("mode-all") {
+			return launchEverything(c) // the new behavior
+		}
+		return c.Builtin("run", c.Args...) // fall through to the real builtin
+	},
+	gwext.Bool("mode-all", "launch all services (orchestrated)"),
+)
+```
+
+`c.Builtin(name, args...)` runs gw's own builtin in a child process with
+extensions disabled, so the override never recurses into itself. Overrides are
+always **surfaced, never silent**: `gw --help` labels the verb `(overrides
+builtin)` and `gw ext list` marks it `override`, so anyone can see a builtin is
+extended here. `gwext.Hide("tidy", "generate")` drops builtins entirely (also
+listed by `gw ext list`).
 
 **Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `build`, `test`, `vet`,
 `generate`, `tidy` (e.g. `post-sync`, `pre-test`). The compiled binary is cached under `.gw/bin/`

@@ -29,11 +29,21 @@ func toGwextModules(mods []workspace.Module) []gwext.Module {
 	return out
 }
 
+// extEnabled reports whether extensions are active for this process. A call-
+// through child (spawned by c.Builtin with GW_SKIP_EXT=1) runs the pure builtin
+// tree: no extension commands, no overrides, no hooks. This both prevents an
+// override from recursing into itself and keeps fall-through behavior identical
+// to the un-extended builtin.
+func extEnabled() bool { return os.Getenv("GW_SKIP_EXT") != "1" }
+
 // fireHook runs a lifecycle hook if an extension is present. Best-effort: errors
 // are surfaced to stderr but never abort the builtin command. Hooks inherit the
 // workspace's configured env (config-level only; per-invocation --env flags stay
 // scoped to the module commands themselves).
 func fireHook(cmd *cobra.Command, root string, mods []workspace.Module, event string) {
+	if !extEnabled() {
+		return
+	}
 	p := newPrinter(cmd)
 	var env []string
 	if cfg, err := workspace.LoadConfig(root); err == nil {
@@ -203,9 +213,15 @@ func attachExtCommands(rootCmd *cobra.Command) {
 			delete(builtin, ci.Name)
 		}
 		name := ci.Name
+		// Surface the override so it is never silent: help and `ext list` both
+		// announce that this verb is extended/overridden in this workspace.
+		suffix := " (extension)"
+		if ci.Override {
+			suffix = " (overrides builtin)"
+		}
 		rootCmd.AddCommand(&cobra.Command{
 			Use:                name,
-			Short:              ci.Short + " (extension)",
+			Short:              ci.Short + suffix,
 			DisableFlagParsing: true, // pass user flags straight through to the extension
 			RunE: func(cmd *cobra.Command, args []string) error {
 				// DisableFlagParsing skips the persistent -C/--root, so resolve the
