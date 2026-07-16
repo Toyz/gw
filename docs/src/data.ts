@@ -1,6 +1,7 @@
 export const REPO = "https://github.com/toyz/gw";
 export const SLUG = "toyz/gw";
 export const INSTALL = "go install github.com/toyz/gw@latest";
+export const GODOC = "https://pkg.go.dev/github.com/toyz/gw/gwext";
 
 // fmtCount abbreviates large counts (1234 → "1.2k") for compact display.
 export function fmtCount(n: number): string {

@@ -89,6 +89,8 @@ See [.github/workflows/example-consumer.yml](.github/workflows/example-consumer.
 
 ## Extensions (`.gw/build.go`)
 
+Full API reference: **[pkg.go.dev/github.com/toyz/gw/gwext](https://pkg.go.dev/github.com/toyz/gw/gwext)**
+
 Extend gw with your own commands and lifecycle hooks by writing a compiled Go
 extension — think Cargo's `build.rs`. Scaffold it:
 

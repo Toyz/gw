@@ -2,6 +2,7 @@ import { LoomElement, component, styles, css } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
 import { base } from "../styles";
 import { codeLines } from "../highlight";
+import { GODOC } from "../data";
 
 const HOOK_EVENTS = [
   "pre-sync", "post-sync", "pre-lint", "post-lint", "pre-build", "post-build",
@@ -139,6 +140,19 @@ const extStyles = css`
     color: var(--text);
     font-weight: 600;
   }
+  .ref {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--amber);
+    transition: opacity 0.15s;
+  }
+  .ref:hover {
+    opacity: 0.75;
+  }
 
   .grid2 {
     display: grid;
@@ -220,6 +234,11 @@ export class PageExtensions extends LoomElement {
               Add commands, hook lifecycle events, contribute build settings,
               and reshape the command tree.
             </p>
+            <a class="ref" href={GODOC}>
+              <loom-icon name="package" size={15} /> gwext API reference on
+              pkg.go.dev
+              <loom-icon name="arrow-right" size={13} />
+            </a>
           </div>
           <div class="win term">
             <div class="win-bar">
