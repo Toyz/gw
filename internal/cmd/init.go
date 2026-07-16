@@ -29,7 +29,8 @@ func newInitCmd() *cobra.Command {
 				return fmt.Errorf("no go.mod files found under %s", root)
 			}
 			if workspace.WorkFileExists(root) && !force && !dryRun {
-				return fmt.Errorf("%s already exists; re-run with --force to regenerate", workspace.WorkFileName)
+				return failf("%s already exists", workspace.WorkFileName).
+					withHint("re-run with --force to regenerate")
 			}
 
 			wf, err := workspace.NewWorkFile(mods)

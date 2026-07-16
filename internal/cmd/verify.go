@@ -1,12 +1,20 @@
 package cmd
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/toyz/gw/internal/workspace"
 )
+
+// verifyLevel maps a verify-report level to a printer level (verify emits only
+// errors and warnings).
+func verifyLevel(l workspace.VerifyLevel) level {
+	if l == workspace.LevelError {
+		return lvlError
+	}
+	return lvlWarn
+}
 
 func newVerifyCmd() *cobra.Command {
 	var (
@@ -50,7 +58,7 @@ func newVerifyCmd() *cobra.Command {
 			}
 
 			for _, f := range rep.Findings {
-				p.printf("%-5s %s\n", string(f.Level), f.Message)
+				p.printFinding(finding{level: verifyLevel(f.Level), msg: f.Message})
 			}
 
 			if plan || len(rep.Releases) > 0 {
@@ -58,32 +66,23 @@ func newVerifyCmd() *cobra.Command {
 					p.println()
 				}
 				if len(rep.Releases) == 0 {
-					p.println("release plan: every module is tagged and clean")
+					p.info("release plan: every module is tagged and clean")
 				} else {
-					p.println("release plan (dependency order):")
+					p.step("release plan (dependency order)")
 					for _, r := range rep.Releases {
-						p.printf("  %-40s %s\n", r.Module, r.Reason)
+						p.printf("    %-40s %s\n", r.Module, r.Reason)
 						if len(r.Dependents) > 0 {
-							p.printf("  %-40s ↳ then bump + re-tag: %s\n", "", strings.Join(r.Dependents, ", "))
+							p.printf("    %-40s ↳ then bump + re-tag: %s\n", "", strings.Join(r.Dependents, ", "))
 						}
 					}
 				}
 			}
 
-			errs, warns := rep.Errors(), rep.Warnings()
-			switch {
-			case errs > 0:
-				return fmt.Errorf("%d release-contract error(s), %d warning(s)", errs, warns)
-			case warns > 0 && strict:
-				return fmt.Errorf("%d warning(s) (--strict)", warns)
-			case warns > 0:
-				p.printf("\n%d warning(s)\n", warns)
-			default:
-				if len(rep.Findings) == 0 {
-					p.println("ok: workspace requires all resolve to published tags")
-				}
+			if len(rep.Findings) > 0 || plan || len(rep.Releases) > 0 {
+				p.println()
 			}
-			return nil
+			return p.result(rep.Errors(), rep.Warnings(), 0, strict,
+				"workspace requires all resolve to published tags")
 		},
 	}
 	cmd.Flags().BoolVar(&strict, "strict", false, "exit non-zero on warnings too")

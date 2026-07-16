@@ -55,7 +55,8 @@ func newSyncCmd() *cobra.Command {
 
 			if check {
 				if len(added)+len(removed) > 0 {
-					return fmt.Errorf("go.work is out of date (%d added, %d removed)", len(added), len(removed))
+					return failf("go.work is out of date (%d added, %d removed)", len(added), len(removed)).
+						withHint("run `gw sync` to update it")
 				}
 				p.println("go.work is up to date")
 				return nil

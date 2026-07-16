@@ -76,7 +76,7 @@ func newExtInitCmd() *cobra.Command {
 			}
 			dir := ext.Dir(root)
 			if ext.Exists(root) {
-				return fmt.Errorf("%s already exists", filepath.Join(".gw", "build.go"))
+				return failf("%s already exists", filepath.Join(".gw", "build.go"))
 			}
 			if err := os.MkdirAll(dir, 0o755); err != nil {
 				return err
@@ -115,7 +115,7 @@ func newExtBuildCmd() *cobra.Command {
 				return err
 			}
 			if !ext.Exists(root) {
-				return fmt.Errorf("no .gw/build.go (run `gw ext init`)")
+				return failf("no .gw/build.go extension").withHint("run `gw ext init`")
 			}
 			bin, err := ext.Build(root)
 			if err != nil {
@@ -138,7 +138,7 @@ func newExtListCmd() *cobra.Command {
 				return err
 			}
 			if !ext.Exists(root) {
-				return fmt.Errorf("no .gw/build.go (run `gw ext init`)")
+				return failf("no .gw/build.go extension").withHint("run `gw ext init`")
 			}
 			m, err := ext.Manifest(root)
 			if err != nil {

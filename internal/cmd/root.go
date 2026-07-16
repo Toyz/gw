@@ -2,7 +2,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -66,8 +68,19 @@ func Execute() {
 		attachExtCommands(root)
 	}
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "gw:", err)
+		renderError(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+// renderError prints a command failure uniformly: "✗ <msg>", plus a dim
+// "help: <hint>" line when the error carries one (a *cmdError).
+func renderError(w io.Writer, err error) {
+	s := newStyler(w)
+	fmt.Fprintf(w, "%s %s\n", s.red("✗"), err.Error())
+	var ce *cmdError
+	if errors.As(err, &ce) && ce.hint != "" {
+		fmt.Fprintf(w, "  %s %s\n", s.dim("help:"), s.dim(ce.hint))
 	}
 }
 
@@ -96,7 +109,8 @@ func resolveRoot() (string, error) {
 func gitRootFor(root string) (string, error) {
 	gitRoot, err := workspace.GitRoot(root)
 	if err != nil {
-		return "", fmt.Errorf("not a git repository (or git unavailable): %w", err)
+		return "", failf("not a git repository (or git unavailable)").
+			withHint("run `git init` in the workspace root")
 	}
 	return gitRoot, nil
 }

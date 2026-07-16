@@ -31,28 +31,30 @@ func newLintCmd() *cobra.Command {
 			p := newPrinter(cmd)
 
 			if len(mismatches) == 0 {
-				p.println("ok: no version mismatches")
+				p.ok("no version mismatches")
 				return nil
 			}
 
 			for _, mm := range mismatches {
 				label := mm.Dep
 				if mm.Dep == workspace.GoDirective || mm.Dep == workspace.ToolchainDirective {
-					label = "[" + mm.Dep + " directive]"
+					label = mm.Dep + " directive"
 				}
-				p.printf("%s:\n", label)
+				p.warn("%s", label)
 				for _, v := range mm.SortedVersions() {
-					p.printf("  %-20s %s\n", v, strings.Join(mm.Versions[v], ", "))
+					p.printf("    %-20s %s\n", v, strings.Join(mm.Versions[v], ", "))
 				}
 			}
+			p.println()
 
 			if !fix {
-				return fmt.Errorf("%d version mismatch(es) found", len(mismatches))
+				return failf("%d version mismatch(es)", len(mismatches)).
+					withHint("run `gw lint --fix` to align them")
 			}
 
 			strat := workspace.Strategy(strategy)
 			if strat != workspace.Highest && strat != workspace.Lowest {
-				return fmt.Errorf("invalid --strategy %q (want highest|lowest)", strategy)
+				return failf("invalid --strategy %q (want highest|lowest)", strategy)
 			}
 			changed := workspace.Fix(mods, mismatches, strat, cfg.Pins)
 			for _, m := range changed {
@@ -60,12 +62,12 @@ func newLintCmd() *cobra.Command {
 					return fmt.Errorf("rewriting %s go.mod: %w", m.Path, err)
 				}
 			}
-			p.printf("\nfixed dependency versions in %d module(s) (strategy: %s)\n", len(changed), strat)
+			p.ok("aligned dependency versions in %d module(s) (strategy: %s)", len(changed), strat)
 
 			// Directive mismatches are not auto-fixed; surface if any remain.
 			for _, mm := range mismatches {
 				if mm.Dep == workspace.GoDirective || mm.Dep == workspace.ToolchainDirective {
-					p.printf("note: %s directive still mismatched (align manually)\n", mm.Dep)
+					p.warn("%s directive still mismatched — align manually", mm.Dep)
 				}
 			}
 			return nil

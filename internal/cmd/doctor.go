@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/toyz/gw/internal/workspace"
 )
@@ -23,24 +21,29 @@ func newDoctorCmd() *cobra.Command {
 				return err
 			}
 			issues := workspace.Diagnose(root, cfg, mods)
-			p := newPrinter(cmd)
-
-			if len(issues) == 0 {
-				p.println("ok: workspace is healthy")
-				return nil
+			findings := make([]finding, len(issues))
+			for i, is := range issues {
+				findings[i] = finding{
+					level: severityLevel(is.Severity),
+					msg:   is.Msg,
+					hint:  is.Fix,
+				}
 			}
-			for _, is := range issues {
-				p.printf("%-5s %s\n      fix: %s\n", is.Severity, is.Msg, is.Fix)
-			}
-			errs, warns, infos := workspace.CountBySeverity(issues)
-			p.printf("\n%d error(s), %d warning(s), %d info\n", errs, warns, infos)
-
-			if errs > 0 || (strict && warns > 0) {
-				return fmt.Errorf("workspace has problems")
-			}
-			return nil
+			return newPrinter(cmd).report(findings, strict, "workspace is healthy")
 		},
 	}
 	cmd.Flags().BoolVar(&strict, "strict", false, "also exit non-zero on warnings")
 	return cmd
+}
+
+// severityLevel maps a workspace diagnosis severity to a printer level.
+func severityLevel(s workspace.Severity) level {
+	switch s {
+	case workspace.SevError:
+		return lvlError
+	case workspace.SevWarn:
+		return lvlWarn
+	default:
+		return lvlInfo
+	}
 }
