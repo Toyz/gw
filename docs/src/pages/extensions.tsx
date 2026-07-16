@@ -70,7 +70,7 @@ gwext.Override("run", "adds --mode=all",
         }
         return c.Builtin("run", c.Args...) // original
     },
-    gwext.Bool("mode-all", "orchestrated launch"))
+    gwext.Bool("mode-all", "orchestrated launch")).Passthrough()
 
 // Or drop a builtin entirely.
 gwext.Hide("generate")`;
@@ -391,6 +391,14 @@ export class PageExtensions extends LoomElement {
                 <code>c.Builtin(name, args...)</code> to fall through to the
                 original. The overridden verb becomes a <b>superset</b>, never a
                 different thing.
+              </p>
+              <p>
+                Overriding a verb that forwards flags to the go tool —{" "}
+                <code>build</code>, <code>test</code>, <code>vet</code>,{" "}
+                <code>run</code>? Chain <code>.Passthrough()</code> so flags you
+                didn't declare (<code>-p</code>, <code>-race</code>) pass
+                straight through to <code>c.Builtin</code> instead of erroring,
+                while your own flags still parse.
               </p>
               <p>
                 Overrides are <b>surfaced, never silent</b>:{" "}

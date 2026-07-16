@@ -144,12 +144,14 @@ func (c *Context) Builtin(name string, args ...string) error {
 }
 
 // CommandInfo describes a registered custom command. Override is set when the
-// command intentionally replaces a builtin of the same name.
+// command intentionally replaces a builtin of the same name; Passthrough when it
+// forwards undeclared flags to c.Args (see Cmd.Passthrough).
 type CommandInfo struct {
-	Name     string `json:"name"`
-	Short    string `json:"short"`
-	Override bool   `json:"override,omitempty"`
-	Flags    []Flag `json:"flags,omitempty"`
+	Name        string `json:"name"`
+	Short       string `json:"short"`
+	Override    bool   `json:"override,omitempty"`
+	Passthrough bool   `json:"passthrough,omitempty"`
+	Flags       []Flag `json:"flags,omitempty"`
 }
 
 // Manifest is what gw reads to learn an extension's commands, hooks, build
@@ -206,13 +208,14 @@ func (b BuildInfo) empty() bool {
 }
 
 type commandReg struct {
-	info  CommandInfo
-	run   func(*Context) error
-	flags []Flag
+	info        CommandInfo
+	run         func(*Context) error
+	flags       []Flag
+	passthrough bool
 }
 
 var (
-	commands      []commandReg
+	commands      []*commandReg
 	hooks         = map[string][]func(*Context) error{}
 	providers     []func(*Context) (BuildInfo, error)
 	eachProviders []func(*Context, Module) (BuildInfo, error)
@@ -223,15 +226,45 @@ var (
 // collides with a builtin is ignored by gw; use Override to replace a builtin.
 // Optional typed flags are declared with Str/Bool/Int; gw parses them from the
 // user's args and the handler reads them via c.String/c.Bool/c.Int.
-func Command(name, short string, run func(*Context) error, flags ...Flag) {
-	commands = append(commands, commandReg{CommandInfo{Name: name, Short: short, Flags: flags}, run, flags})
+func Command(name, short string, run func(*Context) error, flags ...Flag) Cmd {
+	c := &commandReg{info: CommandInfo{Name: name, Short: short, Flags: flags}, run: run, flags: flags}
+	commands = append(commands, c)
+	return Cmd{c}
 }
 
 // Override registers a subcommand that intentionally replaces the builtin of the
 // same name (e.g. to wrap `gw test` with setup/teardown). Unlike Command, gw
 // removes the shadowed builtin instead of skipping the extension command.
-func Override(name, short string, run func(*Context) error, flags ...Flag) {
-	commands = append(commands, commandReg{CommandInfo{Name: name, Short: short, Override: true, Flags: flags}, run, flags})
+func Override(name, short string, run func(*Context) error, flags ...Flag) Cmd {
+	c := &commandReg{info: CommandInfo{Name: name, Short: short, Override: true, Flags: flags}, run: run, flags: flags}
+	commands = append(commands, c)
+	return Cmd{c}
+}
+
+// Cmd is the handle returned by Command and Override for optional configuration.
+type Cmd struct{ reg *commandReg }
+
+// Passthrough makes the command forward any flags it does not declare — plus
+// positional args — into c.Args instead of erroring on them. Use it when
+// overriding a builtin that hands flags to the go tool (build/test/run/vet), so
+// the override can add its own flags and still forward the rest to c.Builtin:
+//
+//	gwext.Override("build", "generate, then build",
+//		func(c *gwext.Context) error {
+//			for _, m := range c.Modules {
+//				if err := c.Mod(m.Path).Generate(); err != nil {
+//					return err
+//				}
+//			}
+//			return c.Builtin("build", c.Args...)
+//		},
+//		gwext.Bool("gen", "run go generate first")).Passthrough()
+//
+// `gw build --gen -p ./...` then sets gen and forwards `-p ./...` untouched.
+func (c Cmd) Passthrough() Cmd {
+	c.reg.passthrough = true
+	c.reg.info.Passthrough = true
+	return c
 }
 
 // Hide removes the named builtin commands from gw's command tree for this
@@ -363,7 +396,11 @@ func runCommand(name string, userArgs []string) {
 			ctx := contextFromEnv()
 			ctx.Args = userArgs
 			if len(c.flags) > 0 {
-				ctx.flags, ctx.Args = parseFlags(name, c.flags, userArgs)
+				if c.passthrough {
+					ctx.flags, ctx.Args = parseFlagsPassthrough(name, c.flags, userArgs)
+				} else {
+					ctx.flags, ctx.Args = parseFlags(name, c.flags, userArgs)
+				}
 			}
 			if err := c.run(ctx); err != nil {
 				fail("gw " + name + ": " + err.Error())

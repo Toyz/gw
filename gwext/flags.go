@@ -2,6 +2,7 @@ package gwext
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -116,6 +117,94 @@ func parseFlags(name string, decls []Flag, argv []string) (map[string]any, []str
 		os.Exit(1)
 	}
 	return vals, fs.Args()
+}
+
+// parseFlagsPassthrough is the tolerant counterpart to parseFlags, used by
+// Passthrough commands: it pulls the declared flags out of argv and returns
+// everything else — unknown flags (with their values), positionals, and
+// anything after "--" — as leftover args, in order. So an Override of a builtin
+// that forwards flags to the go tool can declare its own flags and still hand
+// the rest to c.Builtin. On a missing value for a declared non-bool flag it
+// prints an error and exits 1 (matching parseFlags).
+func parseFlagsPassthrough(name string, decls []Flag, argv []string) (map[string]any, []string) {
+	vals := map[string]any{}
+	set := map[string]func(string){} // by canonical name and every alias
+	isBool := map[string]bool{}
+	for _, d := range decls {
+		names := append([]string{d.Name}, d.Aliases...)
+		switch d.Kind {
+		case "bool":
+			p := new(bool)
+			*p = d.Def == "true"
+			vals[d.Name] = p
+			for _, n := range names {
+				set[n] = func(v string) { *p, _ = strconv.ParseBool(v) }
+				isBool[n] = true
+			}
+		case "int":
+			p := new(int)
+			*p, _ = strconv.Atoi(d.Def)
+			vals[d.Name] = p
+			for _, n := range names {
+				set[n] = func(v string) { *p, _ = strconv.Atoi(v) }
+			}
+		case "strings":
+			p := new([]string)
+			vals[d.Name] = p
+			for _, n := range names {
+				set[n] = func(v string) { _ = stringsValue{p}.Set(v) }
+			}
+		default:
+			p := new(string)
+			*p = d.Def
+			vals[d.Name] = p
+			for _, n := range names {
+				set[n] = func(v string) { *p = v }
+			}
+		}
+	}
+
+	var leftover []string
+	for i := 0; i < len(argv); {
+		a := argv[i]
+		if a == "--" { // conventional end-of-flags: forward the rest verbatim
+			leftover = append(leftover, argv[i+1:]...)
+			break
+		}
+		if len(a) < 2 || a[0] != '-' { // positional
+			leftover = append(leftover, a)
+			i++
+			continue
+		}
+		key := strings.TrimLeft(a, "-")
+		inline, hasInline := "", false
+		if j := strings.IndexByte(key, '='); j >= 0 {
+			inline, hasInline, key = key[j+1:], true, key[:j]
+		}
+		fn, declared := set[key]
+		switch {
+		case !declared: // unknown flag → forward untouched (its value, if any, follows in order)
+			leftover = append(leftover, a)
+			i++
+		case isBool[key]:
+			if hasInline {
+				fn(inline)
+			} else {
+				fn("true")
+			}
+			i++
+		case hasInline:
+			fn(inline)
+			i++
+		case i+1 < len(argv):
+			fn(argv[i+1])
+			i += 2
+		default:
+			fmt.Fprintf(os.Stderr, "gw %s: flag -%s needs a value\n", name, key)
+			os.Exit(1)
+		}
+	}
+	return vals, leftover
 }
 
 // String returns a declared string flag's value ("" if undeclared).

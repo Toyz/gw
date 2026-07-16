@@ -150,7 +150,11 @@ func newExtListCmd() *cobra.Command {
 				if c.Override {
 					kind = "override"
 				}
-				p.printf("%s  %-16s %s\n", kind, c.Name, c.Short)
+				short := c.Short
+				if c.Passthrough {
+					short += " (passthrough)"
+				}
+				p.printf("%s  %-16s %s\n", kind, c.Name, short)
 				for _, fl := range c.Flags {
 					def := ""
 					if fl.Def != "" && fl.Def != "false" {
