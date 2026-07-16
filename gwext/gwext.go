@@ -273,11 +273,47 @@ func Hide(names ...string) {
 	hidden = append(hidden, names...)
 }
 
-// Hook registers a function to run at a lifecycle event (e.g. "pre-sync",
-// "post-lint"). Multiple hooks per event run in registration order.
-func Hook(event string, run func(*Context) error) {
+// Hook registers a function to run at a lifecycle event (e.g. "pre-sync"),
+// appended in registration order.
+//
+// Deprecated: use the typed Before/After helpers — they build the event name
+// for you, so the "pre-"/"post-" phase and the "-" separator can't be mistyped.
+// Hook still works for arbitrary event strings.
+func Hook(event string, run func(*Context) error) { registerHook(event, run) }
+
+// Before registers a hook that runs immediately before the named command —
+// pre-<command>. command is any gw command: a builtin (use the constants below,
+// e.g. gwext.Build) or one of your own, gwext.Before("deploy", fn).
+func Before(command string, run func(*Context) error) { registerHook("pre-"+command, run) }
+
+// After registers a hook that runs after the named command completes
+// successfully — post-<command>.
+func After(command string, run func(*Context) error) { registerHook("post-"+command, run) }
+
+func registerHook(event string, run func(*Context) error) {
 	hooks[event] = append(hooks[event], run)
 }
+
+// Builtin command names, for typo-safe use with Before/After. Hooks work for any
+// command, so custom verbs just take a string: gwext.Before("deploy", fn).
+const (
+	Init     = "init"
+	Sync     = "sync"
+	Lint     = "lint"
+	Doctor   = "doctor"
+	Verify   = "verify"
+	Build    = "build"
+	Test     = "test"
+	Vet      = "vet"
+	Generate = "generate"
+	Tidy     = "tidy"
+	Run      = "run"
+	List     = "list"
+	Graph    = "graph"
+	Affected = "affected"
+	Add      = "add"
+	Remove   = "remove"
+)
 
 // Provide registers a build provider: a function that computes a BuildInfo
 // (environment variables, -ldflags -X vars, build tags) at run time, which gw

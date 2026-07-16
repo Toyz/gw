@@ -38,6 +38,21 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version,
+		// Every workspace command fires pre-/post-<name> hooks from one place —
+		// builtins and custom extension commands alike. Cheap when nothing hooks
+		// the event (fireHook gates on the manifest). post- fires on success.
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if hookable(cmd, args) {
+				fireHook(cmd, "pre-"+cmd.Name())
+			}
+			return nil
+		},
+		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+			if hookable(cmd, args) {
+				fireHook(cmd, "post-"+cmd.Name())
+			}
+			return nil
+		},
 	}
 	root.PersistentFlags().StringVarP(&rootFlag, "root", "C", "", "workspace root (default: nearest go.work, else cwd)")
 
@@ -59,6 +74,40 @@ func newRootCmd() *cobra.Command {
 		root.AddCommand(gc.command())
 	}
 	return root
+}
+
+// hookCommandSkip lists commands that never fire pre-/post- hooks: cobra's meta
+// verbs and the ext management command (whose subcommands run the extension
+// itself, so they'd collide — `gw ext build` is not `gw build`).
+var hookCommandSkip = map[string]bool{
+	"help":             true,
+	"completion":       true,
+	"__complete":       true,
+	"__completeNoDesc": true,
+	"ext":              true,
+}
+
+// hookSuppressFlags mark a read-only/preview run: with one set, the command
+// makes no changes, so its (possibly side-effecting) hooks shouldn't fire.
+var hookSuppressFlags = []string{"dry-run", "check"}
+
+// hookable reports whether cmd is a direct workspace subcommand of the root that
+// should fire pre-/post- hooks — skipping meta verbs, the ext subtree (whose
+// children have "ext", not "gw", as their parent), preview runs, and help
+// queries. args is the command's raw argv: DisableFlagParsing commands (go
+// passthrough, custom/override) reach here with -h/--help unparsed and render
+// help from their own RunE, so a hook must not fire around a help request.
+func hookable(cmd *cobra.Command, args []string) bool {
+	p := cmd.Parent()
+	if p == nil || p.Name() != "gw" || hookCommandSkip[cmd.Name()] || wantsHelp(args) {
+		return false
+	}
+	for _, name := range hookSuppressFlags {
+		if f := cmd.Flags().Lookup(name); f != nil && f.Value.String() == "true" {
+			return false
+		}
+	}
+	return true
 }
 
 // Execute runs the gw CLI.
@@ -118,6 +167,17 @@ func gitRootFor(root string) (string, error) {
 // loadWorkspace resolves the root, loads config, and discovers modules.
 func loadWorkspace() (root string, cfg workspace.Config, mods []workspace.Module, err error) {
 	root, err = resolveRoot()
+	if err != nil {
+		return "", workspace.Config{}, nil, err
+	}
+	return loadWorkspaceAt(root)
+}
+
+// loadWorkspaceEarly is loadWorkspace for DisableFlagParsing commands (go
+// passthrough, custom/override, and the hooks that wrap them): it reads -C
+// straight from os.Args, since the parsed rootFlag is never populated for them.
+func loadWorkspaceEarly() (root string, cfg workspace.Config, mods []workspace.Module, err error) {
+	root, err = earlyResolveRoot()
 	if err != nil {
 		return "", workspace.Config{}, nil, err
 	}

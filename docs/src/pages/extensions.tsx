@@ -4,10 +4,9 @@ import { base } from "../styles";
 import { codeLines } from "../highlight";
 import { GODOC } from "../data";
 
-const HOOK_EVENTS = [
-  "pre-sync", "post-sync", "pre-lint", "post-lint", "pre-build", "post-build",
-  "pre-test", "post-test", "pre-vet", "post-vet", "pre-generate",
-  "post-generate", "pre-tidy", "post-tidy", "pre-run", "post-run",
+const HOOK_COMMANDS = [
+  "init", "sync", "lint", "doctor", "verify", "build", "test", "vet",
+  "generate", "tidy", "run", "list", "graph", "affected", "add", "remove",
 ];
 
 const SCAFFOLD = `$ gw ext init      # scaffold .gw/build.go + .gw/go.mod
@@ -36,9 +35,15 @@ const FLAGS_SAMPLE = `gwext.Command("greet", "greet someone",
     gwext.Str("name", "world", "who to greet").Alias("n"),
     gwext.Bool("loud", "shout it").Alias("l"))`;
 
-const HOOK_SAMPLE = `gwext.Hook("post-sync", func(c *gwext.Context) error {
+const HOOK_SAMPLE = `// Constants for every built-in command — typo-proof.
+gwext.After(gwext.Sync, func(c *gwext.Context) error {
     fmt.Printf("synced %d modules\\n", len(c.Modules))
     return nil
+})
+
+// Any command works, including your own custom verbs:
+gwext.Before("deploy", func(c *gwext.Context) error {
+    return c.Mod("api").Build()
 })`;
 
 const PROVIDE_SAMPLE = `// Prebuilt: stamp git metadata into your binary.
@@ -321,14 +326,23 @@ export class PageExtensions extends LoomElement {
           <div class="grid2">
             <div class="doc">
               <p>
-                <code>gwext.Hook(event, fn)</code> runs on gw's{" "}
-                <code>pre-</code>/<code>post-</code> events. Multiple hooks per
-                event run in registration order.
+                <code>gwext.Before(cmd, fn)</code> and{" "}
+                <code>gwext.After(cmd, fn)</code> run around <b>any</b> command —
+                every built-in verb below, plus your own custom commands.
+                Constants like <code>gwext.Sync</code> keep the common cases
+                typo-proof; a plain string (<code>"deploy"</code>) hooks a custom
+                verb.
               </p>
               <div class="events">
-                {HOOK_EVENTS.map((e) => (
+                {HOOK_COMMANDS.map((e) => (
                   <span class="evt">{e}</span>
                 ))}
+              </div>
+              <div class="note">
+                Multiple hooks per event run in registration order.{" "}
+                <code>--dry-run</code>/<code>--check</code> runs skip them. The
+                older <code>gwext.Hook("pre-sync", …)</code> string form still
+                works but is deprecated.
               </div>
             </div>
             {codeWin(".gw/build.go", HOOK_SAMPLE)}

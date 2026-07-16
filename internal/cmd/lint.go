@@ -21,12 +21,10 @@ func newLintCmd() *cobra.Command {
 			"--fix aligns dependency versions (go/toolchain are reported, never auto-changed).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			root, cfg, mods, err := loadWorkspace()
+			_, cfg, mods, err := loadWorkspace()
 			if err != nil {
 				return err
 			}
-			fireHook(cmd, root, mods, "pre-lint")
-			defer fireHook(cmd, root, mods, "post-lint")
 			mismatches := workspace.Lint(mods)
 			p := newPrinter(cmd)
 

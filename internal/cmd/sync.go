@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 
 	"github.com/spf13/cobra"
@@ -43,9 +42,6 @@ func newSyncCmd() *cobra.Command {
 			added, removed := workspace.SetUseSet(wf, root, mods)
 
 			p := newPrinter(cmd)
-			if !check && !dryRun {
-				fireHook(cmd, root, mods, "pre-sync")
-			}
 			for _, pth := range added {
 				p.printf("%s %s\n", p.s.green("+"), pth)
 			}
@@ -76,13 +72,12 @@ func newSyncCmd() *cobra.Command {
 			if !noWorkSync {
 				gwc := exec.Command("go", "work", "sync")
 				gwc.Dir = root
-				gwc.Stdout = os.Stdout
-				gwc.Stderr = os.Stderr
+				gwc.Stdout = p.Out()
+				gwc.Stderr = p.Err()
 				if err := gwc.Run(); err != nil {
 					return fmt.Errorf("go work sync: %w", err)
 				}
 			}
-			fireHook(cmd, root, mods, "post-sync")
 			return nil
 		},
 	}

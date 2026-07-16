@@ -106,7 +106,6 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 	}
 
 	p := newPrinter(cmd)
-	fireHook(cmd, root, mods, "pre-"+cmd.Name())
 	results := workspace.RunAcross(context.Background(), jobs, workspace.ExecOpts{
 		Parallel:        f.parallel,
 		ContinueOnError: f.continueOnError,
@@ -117,7 +116,6 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 		},
 	})
 	printModuleSummary(p, results)
-	fireHook(cmd, root, mods, "post-"+cmd.Name())
 	if code := workspace.WorstExit(results); code != 0 {
 		os.Exit(code)
 	}
@@ -263,21 +261,17 @@ func splitExecArgs(args []string) (execFlags, []string) {
 	var rest []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
-		switch {
-		case a == "--":
-			return f, append(rest, args[i+1:]...)
 		// Persistent -C/--root is not parsed by cobra when flag parsing is
 		// disabled, so consume it here into the global rootFlag (resolveRoot
 		// reads it) instead of leaking it into the go command.
-		case a == "-C" || a == "--root":
-			if i+1 < len(args) {
-				i++
-				rootFlag = args[i]
-			}
-		case strings.HasPrefix(a, "--root="):
-			rootFlag = strings.TrimPrefix(a, "--root=")
-		case strings.HasPrefix(a, "-C="):
-			rootFlag = strings.TrimPrefix(a, "-C=")
+		if val, span, ok := matchRootFlag(args, i); ok {
+			rootFlag = val
+			i += span - 1
+			continue
+		}
+		switch {
+		case a == "--":
+			return f, append(rest, args[i+1:]...)
 		case a == "-p" || a == "--parallel":
 			f.parallel = true
 		case a == "--continue-on-error":

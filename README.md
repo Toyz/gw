@@ -133,8 +133,10 @@ func main() {
 		return c.Mod("example.com/web").Exec("npm", "run", "dev")
 	})
 
-	// Hook: runs automatically after `gw sync`.
-	gwext.Hook("post-sync", func(c *gwext.Context) error {
+	// Hook: runs automatically after `gw sync`. Before/After wrap any command —
+	// every built-in (typed constants: gwext.Sync, gwext.Build, …) and your own
+	// custom verbs (a plain string, e.g. Before("boot", …)).
+	gwext.After(gwext.Sync, func(c *gwext.Context) error {
 		fmt.Printf("synced %d modules\n", len(c.Modules))
 		return nil
 	})
@@ -142,6 +144,10 @@ func main() {
 	gwext.Main()
 }
 ```
+
+Hooks run for every workspace command, `pre-<cmd>` before and `post-<cmd>`
+after (post- on success; `--dry-run`/`--check` runs skip them). The older
+`gwext.Hook("post-sync", …)` string form still works but is deprecated.
 
 **Context helpers** (on `*gwext.Context`):
 

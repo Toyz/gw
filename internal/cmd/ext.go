@@ -32,21 +32,36 @@ func toGwextModules(mods []workspace.Module) []gwext.Module {
 // to the un-extended builtin.
 func extEnabled() bool { return os.Getenv("GW_SKIP_EXT") != "1" }
 
-// fireHook runs a lifecycle hook if an extension is present. Best-effort: errors
-// are surfaced to stderr but never abort the builtin command. Hooks inherit the
-// workspace's configured env (config-level only; per-invocation --env flags stay
-// scoped to the module commands themselves).
-func fireHook(cmd *cobra.Command, root string, mods []workspace.Module, event string) {
-	if !extEnabled() {
+// registeredHooks is the set of hook events the workspace's extension declares,
+// cached from its manifest at startup (see attachExtCommands). fireHook consults
+// it so an event with no hook — e.g. pre-list when nothing hooks list — never
+// builds or spawns the extension.
+var registeredHooks map[string]bool
+
+// fireHook runs the extension's hook for event, if one is registered. It is
+// best-effort: errors go to stderr but never abort the command. Gated on the
+// cached manifest, so unregistered events cost nothing. It loads the workspace
+// itself; a load failure (e.g. before `gw init` writes go.work) silently skips.
+// Hooks inherit the workspace's configured env (config-level only; per-
+// invocation --env flags stay scoped to the module commands themselves).
+//
+// Root resolution reads -C straight from os.Args (earlyResolveRoot) rather than
+// the parsed rootFlag: hooks fire from the root's persistent pre/post-run, and
+// the commands they wrap (go passthrough, custom/override) use DisableFlagParsing,
+// so rootFlag is never populated for them.
+func fireHook(cmd *cobra.Command, event string) {
+	if !registeredHooks[event] {
+		return
+	}
+	root, cfg, mods, err := loadWorkspaceEarly()
+	if err != nil {
 		return
 	}
 	p := newPrinter(cmd)
-	var env []string
-	if cfg, err := workspace.LoadConfig(root); err == nil {
-		if env, err = workspace.ResolveEnv(root, cfg, nil, nil); err != nil {
-			p.warnf("hook %s: env: %v", event, err)
-			env = nil
-		}
+	env, err := workspace.ResolveEnv(root, cfg, nil, nil)
+	if err != nil {
+		p.warnf("hook %s: env: %v", event, err)
+		env = nil
 	}
 	if err := ext.RunHook(root, event, toGwextModules(mods), env, p.Out(), p.Err()); err != nil {
 		p.warnf("hook %s: %v", event, err)
@@ -197,6 +212,12 @@ func attachExtCommands(rootCmd *cobra.Command) {
 		p.warnf("extension: %v", err)
 		return
 	}
+	// Cache the declared hook events so fireHook can gate on them without
+	// re-reading (or re-spawning) the extension per command.
+	registeredHooks = make(map[string]bool, len(m.Hooks))
+	for _, h := range m.Hooks {
+		registeredHooks[h] = true
+	}
 	builtin := map[string]*cobra.Command{}
 	for _, c := range rootCmd.Commands() {
 		builtin[c.Name()] = c
@@ -228,13 +249,9 @@ func attachExtCommands(rootCmd *cobra.Command) {
 			Short:              ci.Short + suffix,
 			DisableFlagParsing: true, // pass user flags straight through to the extension
 			RunE: func(cmd *cobra.Command, args []string) error {
-				// DisableFlagParsing skips the persistent -C/--root, so resolve the
-				// root straight from os.Args instead of the (unparsed) rootFlag.
-				r, err := earlyResolveRoot()
-				if err != nil {
-					return err
-				}
-				_, cfg, mods, err := loadWorkspaceAt(r)
+				// DisableFlagParsing skips the persistent -C/--root, so this
+				// resolves the root straight from os.Args (loadWorkspaceEarly).
+				r, cfg, mods, err := loadWorkspaceEarly()
 				if err != nil {
 					return err
 				}
@@ -254,15 +271,11 @@ func attachExtCommands(rootCmd *cobra.Command) {
 func stripRootFlag(args []string) []string {
 	var out []string
 	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "-C" || a == "--root":
-			i++ // also skip its value
-		case strings.HasPrefix(a, "-C=") || strings.HasPrefix(a, "--root="):
-			// drop
-		default:
-			out = append(out, a)
+		if _, span, ok := matchRootFlag(args, i); ok {
+			i += span - 1 // skip the flag (and its value, if separate)
+			continue
 		}
+		out = append(out, args[i])
 	}
 	return out
 }
@@ -284,19 +297,32 @@ func earlyResolveRoot() (string, error) {
 }
 
 func scanRootFlag(args []string) string {
-	for i, a := range args {
-		switch {
-		case a == "-C" || a == "--root":
-			if i+1 < len(args) {
-				return args[i+1]
-			}
-		case strings.HasPrefix(a, "--root="):
-			return strings.TrimPrefix(a, "--root=")
-		case strings.HasPrefix(a, "-C="):
-			return strings.TrimPrefix(a, "-C=")
+	for i := range args {
+		if v, _, ok := matchRootFlag(args, i); ok {
+			return v
 		}
 	}
 	return ""
+}
+
+// matchRootFlag reports whether args[i] begins the persistent -C/--root flag,
+// returning its value and how many args it spans: 2 for "-C value", 1 for the
+// joined "-C=value"/"--root=value" or a dangling "-C" with no value. It backs
+// the three places that must handle -C under DisableFlagParsing (splitExecArgs
+// consumes it, stripRootFlag drops it, scanRootFlag reads it).
+func matchRootFlag(args []string, i int) (value string, span int, ok bool) {
+	switch a := args[i]; {
+	case a == "-C" || a == "--root":
+		if i+1 < len(args) {
+			return args[i+1], 2, true
+		}
+		return "", 1, true
+	case strings.HasPrefix(a, "-C="):
+		return strings.TrimPrefix(a, "-C="), 1, true
+	case strings.HasPrefix(a, "--root="):
+		return strings.TrimPrefix(a, "--root="), 1, true
+	}
+	return "", 0, false
 }
 
 const scaffoldBuildGo = `package main
