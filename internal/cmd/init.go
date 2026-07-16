@@ -62,7 +62,7 @@ func newInitCmd() *cobra.Command {
 					return fmt.Errorf("rewriting %s go.mod: %w", m.Path, err)
 				}
 			}
-			p.printf("wrote %s: %d module(s), hoisted replaces from %d go.mod file(s)\n",
+			p.ok("wrote %s: %d module(s), hoisted replaces from %d go.mod file(s)",
 				workspace.WorkFileName, len(mods), len(mutated))
 			return nil
 		},

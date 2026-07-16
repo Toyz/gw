@@ -6,12 +6,34 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/toyz/gw/gwext"
 	"github.com/toyz/gw/internal/ext"
 	"github.com/toyz/gw/internal/workspace"
 )
+
+// printModuleSummary renders the per-module ok/fail + duration lines and a
+// tally, through the shared status vocabulary (used by run/build/test/etc).
+func printModuleSummary(p *printer, results []workspace.ModuleResult) {
+	p.println()
+	failed := 0
+	for _, r := range results {
+		dur := r.Duration.Round(time.Millisecond).String()
+		if r.Failed() {
+			failed++
+			p.fail("%-48s %s", r.Module.Path, dur)
+		} else {
+			p.ok("%-48s %s", r.Module.Path, dur)
+		}
+	}
+	if failed > 0 {
+		p.warn("%d module(s), %d failed", len(results), failed)
+	} else {
+		p.ok("%d module(s), 0 failed", len(results))
+	}
+}
 
 // execFlags are shared by run and every go-passthrough command.
 type execFlags struct {
@@ -90,8 +112,11 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 		ContinueOnError: f.continueOnError,
 		Stdout:          p.Out(),
 		Stderr:          p.Err(),
+		Header: func(m string) string {
+			return p.s.cyan("==") + " " + p.s.bold(m) + " " + p.s.cyan("==")
+		},
 	})
-	workspace.PrintSummary(p.Out(), results)
+	printModuleSummary(p, results)
 	fireHook(cmd, root, mods, "post-"+cmd.Name())
 	if code := workspace.WorstExit(results); code != 0 {
 		os.Exit(code)

@@ -97,8 +97,8 @@ func newExtInitCmd() *cobra.Command {
 			if err := get.Run(); err != nil {
 				p.warnf("note: `go get github.com/toyz/gw@latest` failed; run it in .gw manually")
 			}
-			p.printf("scaffolded %s\nedit it, then run `gw <command>` or `gw ext list`\n",
-				filepath.Join(".gw", "build.go"))
+			p.ok("scaffolded %s", filepath.Join(".gw", "build.go"))
+			p.info("edit it, then run `gw <command>` or `gw ext list`")
 			return nil
 		},
 	}

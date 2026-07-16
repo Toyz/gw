@@ -55,7 +55,7 @@ func newAddCmd() *cobra.Command {
 			if err := workspace.WriteWorkFile(root, wf); err != nil {
 				return err
 			}
-			p.printf("added %s (%s)\n", up, modPath)
+			p.ok("added %s (%s)", up, modPath)
 			return nil
 		},
 	}

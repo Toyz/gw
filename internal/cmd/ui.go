@@ -47,7 +47,7 @@ func (p *printer) warnf(format string, a ...any) {
 }
 
 // Out / Err expose the raw writers for helpers that take an io.Writer
-// (e.g. workspace.PrintSummary, ext.RunHook).
+// (e.g. ext.RunHook, or the streamed output of RunAcross).
 func (p *printer) Out() io.Writer { return p.out }
 func (p *printer) Err() io.Writer { return p.err }
 

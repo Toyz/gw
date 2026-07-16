@@ -57,7 +57,7 @@ func newRemoveCmd() *cobra.Command {
 			if err := workspace.WriteWorkFile(root, wf); err != nil {
 				return err
 			}
-			p.printf("removed %s\n", canonical)
+			p.ok("removed %s", canonical)
 			return nil
 		},
 	}

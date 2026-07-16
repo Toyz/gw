@@ -47,10 +47,10 @@ func newSyncCmd() *cobra.Command {
 				fireHook(cmd, root, mods, "pre-sync")
 			}
 			for _, pth := range added {
-				p.printf("+ %s\n", pth)
+				p.printf("%s %s\n", p.s.green("+"), pth)
 			}
 			for _, pth := range removed {
-				p.printf("- %s\n", pth)
+				p.printf("%s %s\n", p.s.red("-"), pth)
 			}
 
 			if check {
@@ -58,7 +58,7 @@ func newSyncCmd() *cobra.Command {
 					return failf("go.work is out of date (%d added, %d removed)", len(added), len(removed)).
 						withHint("run `gw sync` to update it")
 				}
-				p.println("go.work is up to date")
+				p.ok("go.work is up to date")
 				return nil
 			}
 
@@ -71,7 +71,7 @@ func newSyncCmd() *cobra.Command {
 			if err := workspace.WriteWorkFile(root, wf); err != nil {
 				return err
 			}
-			p.printf("wrote %s: %d module(s)\n", workspace.WorkFileName, len(mods))
+			p.ok("wrote %s: %d module(s)", workspace.WorkFileName, len(mods))
 
 			if !noWorkSync {
 				gwc := exec.Command("go", "work", "sync")

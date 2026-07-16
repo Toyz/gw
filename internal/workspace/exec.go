@@ -22,6 +22,9 @@ type ExecOpts struct {
 	// Stdout/Stderr receive command output. Defaults to os.Stdout/os.Stderr.
 	Stdout io.Writer
 	Stderr io.Writer
+	// Header renders the heading printed before each module's output. Lets the
+	// caller style it; nil falls back to "== <path> ==".
+	Header func(module string) string
 }
 
 // Job is one module command: the argv to run in the module's directory and the
@@ -57,11 +60,15 @@ func RunAcross(ctx context.Context, jobs []Job, opts ExecOpts) []ModuleResult {
 	if opts.Stderr == nil {
 		opts.Stderr = os.Stderr
 	}
+	header := opts.Header
+	if header == nil {
+		header = func(m string) string { return "== " + m + " ==" }
+	}
 	results := make([]ModuleResult, len(jobs))
 
 	if !opts.Parallel {
 		for i, j := range jobs {
-			fmt.Fprintf(opts.Stdout, "== %s ==\n", j.Module.Path)
+			fmt.Fprintln(opts.Stdout, header(j.Module.Path))
 			results[i] = runOne(ctx, j, opts.Stdout, opts.Stderr)
 			if results[i].Failed() && !opts.ContinueOnError {
 				for k := i + 1; k < len(jobs); k++ {
@@ -89,7 +96,7 @@ func RunAcross(ctx context.Context, jobs []Job, opts ExecOpts) []ModuleResult {
 			buf := &syncBuffer{}
 			results[i] = runOne(ctx, j, buf, buf)
 			flushMu.Lock()
-			fmt.Fprintf(opts.Stdout, "== %s ==\n", j.Module.Path)
+			fmt.Fprintln(opts.Stdout, header(j.Module.Path))
 			_, _ = opts.Stdout.Write(buf.Bytes())
 			flushMu.Unlock()
 		}(i, j)
@@ -132,21 +139,6 @@ func WorstExit(results []ModuleResult) int {
 		}
 	}
 	return worst
-}
-
-// PrintSummary writes a per-module ok/fail + duration table to w.
-func PrintSummary(w io.Writer, results []ModuleResult) {
-	fmt.Fprintln(w, "\nSummary:")
-	failed := 0
-	for _, r := range results {
-		status := "ok"
-		if r.Failed() {
-			status = "FAIL"
-			failed++
-		}
-		fmt.Fprintf(w, "  %-4s  %-50s  %s\n", status, r.Module.Path, r.Duration.Round(time.Millisecond))
-	}
-	fmt.Fprintf(w, "%d module(s), %d failed\n", len(results), failed)
 }
 
 // syncBuffer is an io.Writer safe for concurrent writes (stdout+stderr of one command).
