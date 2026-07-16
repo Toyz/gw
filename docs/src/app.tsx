@@ -9,8 +9,8 @@ import {
 } from "@toyz/loom";
 import "@toyz/loom/router"; // registers <loom-outlet> and <loom-link>
 import { RouteChanged } from "@toyz/loom/router";
-import { REPO } from "./data";
-import { ReleaseService } from "./release";
+import { REPO, fmtCount } from "./data";
+import { RepoService } from "./repo";
 import { base } from "./styles";
 
 // Shell: sticky header with route-aware nav, the routed outlet, and a footer.
@@ -18,9 +18,9 @@ import { base } from "./styles";
 @styles(base)
 export class GwSite extends LoomElement {
   @reactive accessor path = "/";
-  // Singleton service; its start() ran (and awaited the fetch) before this
-  // component ever rendered, so tag.value is already populated below.
-  @inject(ReleaseService) accessor release!: ReleaseService;
+  // Singleton service; its start() ran (and awaited the fetches) before this
+  // component ever rendered, so tag/stars are already populated below.
+  @inject(RepoService) accessor repo!: RepoService;
 
   // Read the initial route on connect (before first paint), so the global
   // location read stays out of the constructor.
@@ -36,7 +36,8 @@ export class GwSite extends LoomElement {
 
   update() {
     const active = (to: string) => (this.path === to ? "active" : "");
-    const version = this.release.tag;
+    const version = this.repo.tag;
+    const stars = this.repo.stars;
     return (
       <div>
         <header>
@@ -65,6 +66,13 @@ export class GwSite extends LoomElement {
               )}
               <a class="gh" href={REPO}>
                 <loom-icon name="github" size={16} /> GitHub
+                {stars > 0 ? (
+                  <span class="stars">
+                    <loom-icon name="star" size={13} /> {fmtCount(stars)}
+                  </span>
+                ) : (
+                  ""
+                )}
               </a>
             </div>
           </div>

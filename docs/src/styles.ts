@@ -99,6 +99,19 @@ export const base = css`
     color: var(--text);
     border-color: #2c343e;
   }
+  .gh .stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-left: 0.55rem;
+    padding-left: 0.6rem;
+    border-left: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+  }
+  .gh .stars loom-icon {
+    color: var(--amber);
+  }
   .ver {
     font-family: var(--mono);
     font-size: 0.78rem;

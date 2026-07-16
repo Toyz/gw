@@ -10,7 +10,7 @@ import { clipboard } from "@toyz/loom/element";
 import { route } from "@toyz/loom/router";
 import { COMMAND_GROUPS, FEATURES, INSTALL, REPO, SESSION } from "../data";
 import { codeLines } from "../highlight";
-import { ReleaseService } from "../release";
+import { RepoService } from "../repo";
 import { base } from "../styles";
 
 const EXT_SAMPLE = `import "github.com/toyz/gw/gwext"
@@ -317,7 +317,7 @@ const homeStyles = css`
 @styles(base, homeStyles)
 export class PageHome extends LoomElement {
   @reactive accessor copied = false;
-  @inject(ReleaseService) accessor release!: ReleaseService;
+  @inject(RepoService) accessor repo!: RepoService;
 
   @clipboard("write")
   copyInstall() {
@@ -327,7 +327,7 @@ export class PageHome extends LoomElement {
   }
 
   update() {
-    const version = this.release.tag;
+    const version = this.repo.tag;
     return (
       <div class="wrap">
         <div class="hero">

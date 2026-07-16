@@ -2,6 +2,11 @@ export const REPO = "https://github.com/toyz/gw";
 export const SLUG = "toyz/gw";
 export const INSTALL = "go install github.com/toyz/gw@latest";
 
+// fmtCount abbreviates large counts (1234 → "1.2k") for compact display.
+export function fmtCount(n: number): string {
+  return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
+}
+
 export interface Feature {
   icon: string;
   title: string;

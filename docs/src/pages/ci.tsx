@@ -1,7 +1,7 @@
 import { LoomElement, component, css, inject, styles } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
 import { yamlLines } from "../highlight";
-import { ReleaseService } from "../release";
+import { RepoService } from "../repo";
 import { base } from "../styles";
 
 const MINIMAL = `- uses: actions/setup-go@v5
@@ -259,10 +259,10 @@ const ciStyles = css`
 @component("page-ci")
 @styles(base, ciStyles)
 export class PageCI extends LoomElement {
-  @inject(ReleaseService) accessor release!: ReleaseService;
+  @inject(RepoService) accessor repo!: RepoService;
 
   update() {
-    const rows = inputs(this.release.tag);
+    const rows = inputs(this.repo.tag);
     return (
       <div class="wrap">
         <div class="hero">
