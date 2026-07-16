@@ -196,11 +196,14 @@ func HoistReplaces(root string, wf *modfile.WorkFile, mods []Module) (mutated []
 				changed = true
 				continue
 			}
-			chosen[k] = module.Version{Path: newPath, Version: newVers}
 			if err := wf.AddReplace(r.Old.Path, r.Old.Version, newPath, newVers); err != nil {
 				warnings = append(warnings, fmt.Sprintf("could not hoist replace %s: %v", replaceLHS(r), err))
 				continue
 			}
+			// Record ownership only after the hoist succeeds: otherwise a later
+			// module with the same LHS would drop its replace as a "conflict"
+			// while nothing was ever added to go.work, losing it entirely.
+			chosen[k] = module.Version{Path: newPath, Version: newVers}
 			_ = m.GoMod.DropReplace(r.Old.Path, r.Old.Version)
 			changed = true
 		}

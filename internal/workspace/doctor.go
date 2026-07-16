@@ -88,18 +88,3 @@ func Diagnose(root string, cfg Config, mods []Module) []Issue {
 
 	return issues
 }
-
-// CountBySeverity returns how many issues carry each severity.
-func CountBySeverity(issues []Issue) (errors, warns, infos int) {
-	for _, i := range issues {
-		switch i.Severity {
-		case SevError:
-			errors++
-		case SevWarn:
-			warns++
-		case SevInfo:
-			infos++
-		}
-	}
-	return
-}

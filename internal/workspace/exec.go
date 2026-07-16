@@ -93,11 +93,15 @@ func RunAcross(ctx context.Context, jobs []Job, opts ExecOpts) []ModuleResult {
 		go func(i int, j Job) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			buf := &syncBuffer{}
-			results[i] = runOne(ctx, j, buf, buf)
+			// Buffer each stream separately so parallel mode preserves the
+			// caller's stdout/stderr split (serial mode already does via runOne);
+			// folding both into one writer would send diagnostics to stdout.
+			var outBuf, errBuf syncBuffer
+			results[i] = runOne(ctx, j, &outBuf, &errBuf)
 			flushMu.Lock()
 			fmt.Fprintln(opts.Stdout, header(j.Module.Path))
-			_, _ = opts.Stdout.Write(buf.Bytes())
+			_, _ = opts.Stdout.Write(outBuf.Bytes())
+			_, _ = opts.Stderr.Write(errBuf.Bytes())
 			flushMu.Unlock()
 		}(i, j)
 	}
