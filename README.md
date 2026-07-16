@@ -155,13 +155,17 @@ func main() {
 **Typed command flags:** declare flags with `gwext.Str/Bool/Int` after the
 handler. gw parses them from the user's args (the handler reads typed values via
 `c.String/c.Bool/c.Int`, with leftover positionals in `c.Args`), and they show up
-in `gw <cmd> --help` and `gw ext list`:
+in `gw <cmd> --help` and `gw ext list`. Both `--flag value` and `--flag=value`
+forms parse; add short aliases with `.Alias(...)` (either name sets the same
+value, read by the canonical name). `gwext.Strs(name, help)` declares a
+repeatable slice flag — pass it multiple times and/or comma-separated
+(`--tag a --tag b`, `--tag a,b`) and read with `c.Strings(name)`:
 
 ```go
 gwext.Command("hello", "greet someone", func(c *gwext.Context) error {
 	fmt.Println("hello", c.String("name"))
 	return nil
-}, gwext.Str("name", "world", "who to greet"), gwext.Bool("loud", "shout"))
+}, gwext.Str("name", "world", "who to greet").Alias("n"), gwext.Bool("loud", "shout").Alias("l"))
 ```
 
 **Build providers** (`gwext.Provide`) let an extension *compute* environment and

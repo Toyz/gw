@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Flag declares a typed argument for a Command. Build them with Str/Bool/Int and
@@ -11,10 +12,11 @@ import (
 // typed values via c.String/c.Bool/c.Int, and they show up in `gw ext list` and
 // `gw <cmd> --help`.
 type Flag struct {
-	Name string `json:"name"`
-	Kind string `json:"kind"` // "string" | "bool" | "int"
-	Def  string `json:"default,omitempty"`
-	Help string `json:"help,omitempty"`
+	Name    string   `json:"name"`
+	Kind    string   `json:"kind"` // "string" | "bool" | "int"
+	Def     string   `json:"default,omitempty"`
+	Help    string   `json:"help,omitempty"`
+	Aliases []string `json:"aliases,omitempty"` // alternate names, e.g. "n" for "name"
 }
 
 // Str declares a string flag with a default value.
@@ -32,21 +34,79 @@ func Int(name string, def int, help string) Flag {
 	return Flag{Name: name, Kind: "int", Def: strconv.Itoa(def), Help: help}
 }
 
+// Strs declares a repeatable string-slice flag. Pass it multiple times
+// (--tag a --tag b) and/or comma-separated (--tag a,b); both accumulate. Read
+// the collected values with c.Strings(name).
+func Strs(name, help string) Flag {
+	return Flag{Name: name, Kind: "strings", Help: help}
+}
+
+// stringsValue is a flag.Value that accumulates repeated and comma-separated
+// occurrences into one slice.
+type stringsValue struct{ p *[]string }
+
+func (s stringsValue) String() string {
+	if s.p == nil {
+		return ""
+	}
+	return strings.Join(*s.p, ",")
+}
+
+func (s stringsValue) Set(v string) error {
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			*s.p = append(*s.p, part)
+		}
+	}
+	return nil
+}
+
+// Alias adds one or more alternate names for a flag. Any alias sets the same
+// value; the handler still reads it by the canonical Name (c.String/Bool/Int).
+// e.g. gwext.Str("name", "world", "who").Alias("n").
+func (f Flag) Alias(names ...string) Flag {
+	f.Aliases = append(f.Aliases, names...)
+	return f
+}
+
 // parseFlags binds decls onto a FlagSet, parses argv, and returns the typed
 // value map plus the leftover positional args. On -h/--help it prints usage and
 // exits 0; on a bad flag it prints the error+usage (via the FlagSet) and exits 1.
 func parseFlags(name string, decls []Flag, argv []string) (map[string]any, []string) {
 	fs := flag.NewFlagSet("gw "+name, flag.ContinueOnError)
 	vals := map[string]any{}
+	// Register the canonical name and every alias against the same value pointer,
+	// so passing either sets it; the handler reads by canonical Name.
 	for _, d := range decls {
+		names := append([]string{d.Name}, d.Aliases...)
 		switch d.Kind {
 		case "bool":
-			vals[d.Name] = fs.Bool(d.Name, d.Def == "true", d.Help)
+			p := new(bool)
+			*p = d.Def == "true"
+			for _, n := range names {
+				fs.BoolVar(p, n, *p, d.Help)
+			}
+			vals[d.Name] = p
 		case "int":
-			n, _ := strconv.Atoi(d.Def)
-			vals[d.Name] = fs.Int(d.Name, n, d.Help)
+			p := new(int)
+			*p, _ = strconv.Atoi(d.Def)
+			for _, n := range names {
+				fs.IntVar(p, n, *p, d.Help)
+			}
+			vals[d.Name] = p
+		case "strings":
+			p := new([]string)
+			for _, n := range names {
+				fs.Var(stringsValue{p}, n, d.Help)
+			}
+			vals[d.Name] = p
 		default:
-			vals[d.Name] = fs.String(d.Name, d.Def, d.Help)
+			p := new(string)
+			*p = d.Def
+			for _, n := range names {
+				fs.StringVar(p, n, *p, d.Help)
+			}
+			vals[d.Name] = p
 		}
 	}
 	if err := fs.Parse(argv); err != nil {
@@ -80,4 +140,13 @@ func (c *Context) Int(name string) int {
 		return *v
 	}
 	return 0
+}
+
+// Strings returns a declared string-slice flag's accumulated values (nil if
+// undeclared or never passed).
+func (c *Context) Strings(name string) []string {
+	if v, ok := c.flags[name].(*[]string); ok {
+		return *v
+	}
+	return nil
 }

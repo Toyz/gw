@@ -160,7 +160,11 @@ func newExtListCmd() *cobra.Command {
 					if fl.Def != "" && fl.Def != "false" {
 						def = " [" + fl.Def + "]"
 					}
-					p.printf("           --%s  %s%s\n", fl.Name, fl.Help, def)
+					names := "--" + fl.Name
+					for _, a := range fl.Aliases {
+						names += ", -" + a
+					}
+					p.printf("           %s  %s%s\n", names, fl.Help, def)
 				}
 			}
 			for _, h := range m.Hooks {

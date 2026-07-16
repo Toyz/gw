@@ -32,8 +32,8 @@ const FLAGS_SAMPLE = `gwext.Command("greet", "greet someone",
         fmt.Println(msg)
         return nil
     },
-    gwext.Str("name", "world", "who to greet"),
-    gwext.Bool("loud", "shout it"))`;
+    gwext.Str("name", "world", "who to greet").Alias("n"),
+    gwext.Bool("loud", "shout it").Alias("l"))`;
 
 const HOOK_SAMPLE = `gwext.Hook("post-sync", func(c *gwext.Context) error {
     fmt.Printf("synced %d modules\\n", len(c.Modules))
@@ -282,9 +282,13 @@ export class PageExtensions extends LoomElement {
                 <code>c.Args</code>.
               </p>
               <p>
-                They show up in <code>gw &lt;cmd&gt; --help</code>{" "}
-                (auto-generated usage) and <code>gw ext list</code>; an unknown
-                flag errors out.
+                Add short forms with <code>.Alias("n")</code> — either name sets
+                the same value. Both <code>--flag value</code> and{" "}
+                <code>--flag=value</code> parse. <code>gwext.Strs</code> declares
+                a repeatable slice flag (<code>--tag a --tag b</code> or{" "}
+                <code>--tag a,b</code>), read with <code>c.Strings</code>. They
+                show up in <code>gw &lt;cmd&gt; --help</code> and{" "}
+                <code>gw ext list</code>; an unknown flag errors out.
               </p>
             </div>
             {codeWin(".gw/build.go", FLAGS_SAMPLE)}
