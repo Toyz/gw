@@ -10,6 +10,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DefaultConfigName is the filename `gw config init` scaffolds — the preferred,
+// first-checked candidate.
+const DefaultConfigName = "gw.toml"
+
 // configCandidates are the config filenames LoadConfig looks for in the root,
 // in priority order. TOML is preferred; YAML is still accepted. The first one
 // that exists wins, so a repo with both gw.toml and gw.yaml uses gw.toml.
@@ -34,7 +38,31 @@ type Config struct {
 	// EnvFiles lists dotenv files (relative to the root, or absolute) layered on
 	// top of Env, in order. Later files and inline Env keys lose to CLI --env.
 	EnvFiles []string `toml:"env_files" yaml:"envFiles"`
+	// Commands declares custom `gw <name>` subcommands natively — no compiled
+	// .gw/build.go needed. Keyed by command name: [commands.<name>].
+	Commands map[string]ConfigCommand `toml:"commands" yaml:"commands"`
+	// Hooks declares lifecycle hooks natively, keyed by event: [hooks.<event>]
+	// (e.g. [hooks.pre-build]). Same shape as Commands.
+	Hooks map[string]ConfigCommand `toml:"hooks" yaml:"hooks"`
 }
+
+// ConfigCommand is a command or hook declared in gw.toml/gw.yaml: an ordered
+// list of steps run natively by gw. Shared by [commands.<name>] and
+// [hooks.<event>].
+type ConfigCommand struct {
+	// Desc is the one-line help shown in `gw --help` and `gw list` (commands only).
+	Desc string `toml:"desc" yaml:"desc"`
+	// Steps run in order. A step "<module>:<verb>" (verb in build/test/vet/
+	// generate/tidy/run, no spaces) runs that go command in the module's
+	// directory; any other string is a shell command (sh -c) run in Dir.
+	Steps []string `toml:"steps" yaml:"steps"`
+	// Dir sets the working directory for shell steps: a module (by path or name),
+	// else a path relative to the root. Module:verb steps ignore it.
+	Dir string `toml:"dir" yaml:"dir"`
+}
+
+// Empty reports whether the command declares no work (nothing to run).
+func (c ConfigCommand) Empty() bool { return len(c.Steps) == 0 }
 
 // defaultIgnores are directory names never walked into during discovery. ".gw"
 // holds gw's own compiled extension module (gwext.local); it is intentionally
@@ -64,4 +92,16 @@ func LoadConfig(root string) (Config, error) {
 		return cfg, nil
 	}
 	return cfg, nil
+}
+
+// ConfigPath returns the path of the config file gw would load for root — the
+// first of configCandidates that exists — and whether one was found.
+func ConfigPath(root string) (string, bool) {
+	for _, name := range configCandidates {
+		p := filepath.Join(root, name)
+		if _, err := os.Stat(p); err == nil {
+			return p, true
+		}
+	}
+	return "", false
 }

@@ -32,18 +32,32 @@ func toGwextModules(mods []workspace.Module) []gwext.Module {
 // to the un-extended builtin.
 func extEnabled() bool { return os.Getenv("GW_SKIP_EXT") != "1" }
 
-// registeredHooks is the set of hook events the workspace's extension declares,
-// cached from its manifest at startup (see attachExtCommands). fireHook consults
-// it so an event with no hook — e.g. pre-list when nothing hooks list — never
-// builds or spawns the extension.
+// registeredHooks is the gate: the union of every hook event this workspace
+// declares — from the compiled extension's manifest AND from [hooks.<event>] in
+// gw.toml — cached at startup (attachExtCommands, attachConfigCommands). fireHook
+// consults it so an unhooked event (e.g. pre-list when nothing hooks list) never
+// loads the workspace, runs a script, or spawns the extension.
 var registeredHooks map[string]bool
 
-// fireHook runs the extension's hook for event, if one is registered. It is
+// extHookEvents is the subset declared by the compiled extension's manifest —
+// the ones fireHook dispatches to ext.RunHook (config hooks come from cfg.Hooks).
+var extHookEvents map[string]bool
+
+// addHookEvent records event in the shared gate, allocating the map on demand.
+func addHookEvent(event string) {
+	if registeredHooks == nil {
+		registeredHooks = map[string]bool{}
+	}
+	registeredHooks[event] = true
+}
+
+// fireHook runs the hooks registered for event — config-declared (native, via
+// sh -c / module:verb steps) then the compiled extension's, if any. It is
 // best-effort: errors go to stderr but never abort the command. Gated on the
-// cached manifest, so unregistered events cost nothing. It loads the workspace
-// itself; a load failure (e.g. before `gw init` writes go.work) silently skips.
-// Hooks inherit the workspace's configured env (config-level only; per-
-// invocation --env flags stay scoped to the module commands themselves).
+// union manifest, so unhooked events cost nothing. It loads the workspace itself;
+// a load failure (e.g. before `gw init` writes go.work) silently skips. Hooks
+// inherit the workspace's configured env (config-level only; per-invocation
+// --env flags stay scoped to the module commands themselves).
 //
 // Root resolution reads -C straight from os.Args (earlyResolveRoot) rather than
 // the parsed rootFlag: hooks fire from the root's persistent pre/post-run, and
@@ -58,13 +72,20 @@ func fireHook(cmd *cobra.Command, event string) {
 		return
 	}
 	p := newPrinter(cmd)
-	env, err := workspace.ResolveEnv(root, cfg, nil, nil)
+	env, err := workspace.ResolveConfigEnv(root, cfg)
 	if err != nil {
 		p.warnf("hook %s: env: %v", event, err)
 		env = nil
 	}
-	if err := ext.RunHook(root, event, toGwextModules(mods), env, p.Out(), p.Err()); err != nil {
-		p.warnf("hook %s: %v", event, err)
+	if cc, ok := cfg.Hooks[event]; ok && !cc.Empty() {
+		if err := execConfigCommand(p, root, mods, env, cc); err != nil {
+			p.warnf("hook %s: %v", event, err)
+		}
+	}
+	if extHookEvents[event] {
+		if err := ext.RunHook(root, event, toGwextModules(mods), env, p.Out(), p.Err()); err != nil {
+			p.warnf("hook %s: %v", event, err)
+		}
 	}
 }
 
@@ -213,10 +234,12 @@ func attachExtCommands(rootCmd *cobra.Command) {
 		return
 	}
 	// Cache the declared hook events so fireHook can gate on them without
-	// re-reading (or re-spawning) the extension per command.
-	registeredHooks = make(map[string]bool, len(m.Hooks))
+	// re-reading (or re-spawning) the extension per command; also union them into
+	// the shared gate alongside any config-declared hooks.
+	extHookEvents = make(map[string]bool, len(m.Hooks))
 	for _, h := range m.Hooks {
-		registeredHooks[h] = true
+		extHookEvents[h] = true
+		addHookEvent(h)
 	}
 	builtin := map[string]*cobra.Command{}
 	for _, c := range rootCmd.Commands() {

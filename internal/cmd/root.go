@@ -68,6 +68,7 @@ func newRootCmd() *cobra.Command {
 		newAffectedCmd(),
 		newVerifyCmd(),
 		newDoctorCmd(),
+		newConfigCmd(),
 		newExtCmd(),
 	)
 	for _, gc := range goCommands {
@@ -77,14 +78,15 @@ func newRootCmd() *cobra.Command {
 }
 
 // hookCommandSkip lists commands that never fire pre-/post- hooks: cobra's meta
-// verbs and the ext management command (whose subcommands run the extension
-// itself, so they'd collide — `gw ext build` is not `gw build`).
+// verbs and the management groups whose subcommands aren't workspace runs (`gw
+// ext build` is not `gw build`; `gw config init` scaffolds a file).
 var hookCommandSkip = map[string]bool{
 	"help":             true,
 	"completion":       true,
 	"__complete":       true,
 	"__completeNoDesc": true,
 	"ext":              true,
+	"config":           true,
 }
 
 // hookSuppressFlags mark a read-only/preview run: with one set, the command
@@ -115,6 +117,7 @@ func Execute() {
 	root := newRootCmd()
 	if extEnabled() {
 		attachExtCommands(root)
+		attachConfigCommands(root)
 	}
 	if err := root.Execute(); err != nil {
 		renderError(os.Stderr, err)
