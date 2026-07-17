@@ -54,22 +54,14 @@ type Config struct {
 }
 
 // Service is a deployable unit declared in gw.toml/gw.yaml under
-// [services.<name>]. Only Path is required (defaults to the service name). The
-// rest is runtime metadata for tooling that deploys the service (e.g. a boot
-// extension) — gw core only uses Path, for `gw affected`.
+// [services.<name>]. gw core reads only Path (for `gw affected`); it takes no
+// opinion on how the service is built or run. Any other keys under the table
+// (image, port, whatever your deploy tooling wants) are ignored by gw — they are
+// yours to interpret.
 type Service struct {
 	// Path is the service's directory, relative to the workspace root (defaults
 	// to the service name). Ownership for `gw affected` is by this directory.
 	Path string `toml:"path" yaml:"path"`
-	// Build is the command that builds the service (e.g. "cargo build --release",
-	// "go build ./..."). Informational for gw core; used by deploy tooling.
-	Build string `toml:"build" yaml:"build"`
-	// Port is the service's listen port, if any. Informational.
-	Port int `toml:"port" yaml:"port"`
-	// Image is the container image name to build/run, if any. Informational.
-	Image string `toml:"image" yaml:"image"`
-	// Lang is a free-form language tag (e.g. "go", "rust"). Informational.
-	Lang string `toml:"lang" yaml:"lang"`
 }
 
 // ConfigCommand is a command or hook declared in gw.toml/gw.yaml: an ordered

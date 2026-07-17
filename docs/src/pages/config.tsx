@@ -56,8 +56,8 @@ const FIELDS: { key: string; type: string; desc: string; tip: string }[] = [
   {
     key: "services",
     type: "map",
-    desc: "Deployable units — even non-Go. gw affected --services reports which a diff touches, by directory.",
-    tip: '[services.sat]   path = "sat"   lang = "rust"',
+    desc: "Deployable dirs — even non-Go. gw affected --services reports which a diff touches. gw reads only path.",
+    tip: '[services.sat]   path = "sat"',
   },
 ];
 
@@ -124,9 +124,8 @@ path = "svc/api"              # dir; defaults to the name
 
 [services.sat]               # a Rust bird, no go.mod
 path = "sat"
-lang = "rust"                # metadata
-build = "cargo build --release"
-port = 8080
+image = "spm/sat"            # extra keys are YOURS — gw ignores them
+port  = 8080                 # (your deploy tooling reads them)
 
 # gw affected --since main --services  ->  sat`;
 
@@ -434,12 +433,12 @@ export class PageConfig extends LoomElement {
                 <b>Rust service the Go workspace can't see</b>.
               </p>
               <p>
-                gw core only uses <code>path</code> (defaults to the name); the
-                rest — <code>lang</code>, <code>build</code>, <code>port</code>,{" "}
-                <code>image</code> — is metadata for a deploy step or a{" "}
-                <code>boot</code> extension. In <code>--json</code>, affected
-                services appear under <code>services</code> alongside{" "}
-                <code>seeds</code>/<code>impacted</code>.
+                gw reads <b>only <code>path</code></b> (defaults to the name) and
+                takes no opinion on how a service builds or runs — any other keys
+                you add are <b>ignored by gw</b> and free for your own deploy
+                tooling. In <code>--json</code>, affected services appear under{" "}
+                <code>services</code> alongside <code>seeds</code>/
+                <code>impacted</code>.
               </p>
               <div class="note">
                 Change-based redeploy across languages: pipe{" "}

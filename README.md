@@ -115,12 +115,12 @@ path = "svc/api"                # dir (relative to root); defaults to the name
 
 [services.sat]                  # a Rust service — no go.mod, still tracked
 path = "sat"
-lang = "rust"                   # informational
-build = "cargo build --release" # informational (used by deploy tooling, not gw core)
-port = 8080
+image = "spm/sat"               # any extra keys are YOURS — gw ignores them,
+port  = 8080                    # your deploy tooling reads them if it wants
 ```
 
-gw core only uses `path` (the rest is metadata for a deploy step / boot extension).
+**gw reads only `path`.** It takes no opinion on how a service builds or runs —
+any other keys you add are ignored by gw and free for your own deploy tooling.
 `gw affected --since main --services` prints the affected service names, one per
 line — pipe it straight into your deploy. In `--json`, affected services appear
 under `services` alongside `seeds`/`impacted`.

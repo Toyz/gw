@@ -10,8 +10,8 @@ func TestAffectedServices(t *testing.T) {
 	root := "/ws"
 	services := map[string]Service{
 		"api":     {Path: "svc/api"},
-		"sat":     {Path: "sat", Lang: "rust"}, // non-Go, path == would-be name too
-		"gateway": {},                          // no Path -> defaults to name "gateway"
+		"sat":     {Path: "sat"}, // non-Go
+		"gateway": {},            // no Path -> defaults to name "gateway"
 	}
 	abs := func(p string) string { return filepath.FromSlash(filepath.Join(root, p)) }
 
