@@ -53,6 +53,15 @@ func Git(dir string) GitInfo {
 // Because `-X` only affects the module that actually links the package, the
 // stamp lands on that module alone even though gw passes -ldflags to every
 // build — no need to scope it yourself.
+//
+// Git metadata is workspace-global, so pair GitStamp with Provide, not
+// ProvideEach — the -X scoping above already targets the single linking module.
+// For the rare case of one version package per module, compose it in a
+// ProvideEach closure:
+//
+//	gwext.ProvideEach(func(c *gwext.Context, m gwext.Module) (gwext.BuildInfo, error) {
+//		return gwext.GitStamp(m.Path + "/version")(c)
+//	})
 func GitStamp(pkg string) func(*Context) (BuildInfo, error) {
 	return func(c *Context) (BuildInfo, error) {
 		g := Git(c.Root)
@@ -73,6 +82,8 @@ func GitStamp(pkg string) func(*Context) (BuildInfo, error) {
 // GW_GIT_BRANCH, GW_GIT_TAG, GW_GIT_TIME, GW_GIT_DIRTY.
 //
 //	gwext.Provide(gwext.GitEnv())
+//
+// Git metadata is workspace-global — pair GitEnv with Provide, not ProvideEach.
 func GitEnv() func(*Context) (BuildInfo, error) {
 	return func(c *Context) (BuildInfo, error) {
 		g := Git(c.Root)
