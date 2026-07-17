@@ -93,6 +93,7 @@ export const COMMAND_GROUPS: CommandGroup[] = [
     items: [
       { name: "gw add / remove <path>", desc: "Add or drop a single module's use directive." },
       { name: "gw ext", desc: "Scaffold, build, and list the .gw/build.go extension." },
+      { name: "gw mcp", desc: "Run gw as an MCP stdio server so an agent can drive the workspace." },
     ],
   },
 ];
