@@ -23,7 +23,8 @@ func newAffectedCmd() *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if since == "" {
-				return failf("--since <ref> is required")
+				return failf("--since <ref> is required").
+					withHint("e.g. --since main or --since HEAD~1")
 			}
 			root, _, mods, err := loadWorkspace()
 			if err != nil {

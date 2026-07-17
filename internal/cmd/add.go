@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -25,7 +24,8 @@ func newAddCmd() *cobra.Command {
 				dir = filepath.Join(root, dir)
 			}
 			if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
-				return fmt.Errorf("no go.mod at %s", dir)
+				return failf("no go.mod at %s", dir).
+					withHint("gw add takes a directory that contains a go.mod")
 			}
 			mods, err := workspace.Discover(dir, workspace.Config{})
 			if err != nil {

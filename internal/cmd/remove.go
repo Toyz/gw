@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -25,7 +24,8 @@ func newRemoveCmd() *cobra.Command {
 				return err
 			}
 			if wf == nil {
-				return fmt.Errorf("no %s at %s", workspace.WorkFileName, root)
+				return failf("no %s at %s", workspace.WorkFileName, root).
+					withHint("run `gw sync` or `gw init` first")
 			}
 
 			dir := args[0]
@@ -52,7 +52,8 @@ func newRemoveCmd() *cobra.Command {
 				}
 			}
 			if !found {
-				return fmt.Errorf("%s is not a use directory in go.work", args[0])
+				return failf("%s is not a use directory in go.work", args[0]).
+					withHint("run `gw list` to see the workspace's modules")
 			}
 			if err := workspace.WriteWorkFile(root, wf); err != nil {
 				return err

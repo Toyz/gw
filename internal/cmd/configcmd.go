@@ -112,10 +112,38 @@ func execConfigCommand(p *printer, root string, mods []workspace.Module, env []s
 		}
 		p.step("%s", step)
 		if err := runShell(shellDir, env, step); err != nil {
-			return failf("`%s` failed: %v", step, err)
+			e := failf("`%s` failed: %v", step, err)
+			if cc.Dir == "" && looksMisplacedGoCmd(step) {
+				// Bare `go build/generate/... ./...` (or `go mod tidy`) run from the
+				// workspace root fails — the root has no go.mod. Point at the fix.
+				e = e.withHint(`go tools are module-relative — use a "<module>:<verb>" step (e.g. api:generate), or set dir`)
+			}
+			return e
 		}
 	}
 	return nil
+}
+
+// looksMisplacedGoCmd reports whether a shell step is a module-relative go
+// command (a `./...` build/test/vet/generate, or `go mod tidy`) — the kind that
+// fails from the workspace root and wants a "<module>:<verb>" step instead.
+func looksMisplacedGoCmd(step string) bool {
+	f := strings.Fields(step)
+	if len(f) < 2 || f[0] != "go" {
+		return false
+	}
+	if f[1] == "mod" {
+		return len(f) > 2 && f[2] == "tidy"
+	}
+	switch f[1] {
+	case "build", "test", "vet", "generate":
+		for _, a := range f[2:] {
+			if a == "./..." {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // parseStep classifies a step: a whitespace-free "<module>:<verb>" whose verb is
@@ -183,9 +211,11 @@ func resolveModule(mods []workspace.Module, ref string) (workspace.Module, error
 	case 1:
 		return matches[0], nil
 	case 0:
-		return workspace.Module{}, failf("no module %q in the workspace", ref)
+		return workspace.Module{}, failf("no module %q in the workspace", ref).
+			withHint("run `gw list` to see module paths")
 	default:
-		return workspace.Module{}, failf("ambiguous module %q (matches %d modules)", ref, len(matches))
+		return workspace.Module{}, failf("ambiguous module %q (matches %d modules)", ref, len(matches)).
+			withHint("use the full module path to disambiguate (e.g. example.com/svc/api)")
 	}
 }
 

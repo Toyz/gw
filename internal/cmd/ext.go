@@ -112,7 +112,8 @@ func newExtInitCmd() *cobra.Command {
 			}
 			dir := ext.Dir(root)
 			if ext.Exists(root) {
-				return failf("%s already exists", filepath.Join(".gw", "build.go"))
+				return failf("%s already exists", filepath.Join(".gw", "build.go")).
+					withHint("edit it, or remove .gw to re-scaffold")
 			}
 			if err := os.MkdirAll(dir, 0o755); err != nil {
 				return err
