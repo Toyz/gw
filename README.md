@@ -28,7 +28,7 @@ go install github.com/toyz/gw@latest
 | `gw list` | List modules; `-v` adds go version + external requires; `--json`. |
 | `gw add <path>` / `gw remove <path>` | Add/remove a single module's `use` directive. |
 | `gw graph` | Print the intra-workspace dependency DAG (edge A->B = A requires B). Text, `--dot` (Graphviz), or `--json`. Edges come from direct/indirect requires and local `replace` targets. |
-| `gw affected --since <ref>` | Diff the working tree against a git ref, map changed files to owning modules, and walk the DAG to every impacted module. `--seeds` (only directly-changed), `--dir`, `--json`. Feed selective CI: `gw affected --since main`. |
+| `gw affected --since <ref>` | Diff the working tree against a git ref, map changed files to owning modules, and walk the DAG to every impacted module. `--seeds` (only directly-changed), `--dir`, `--json`. `--services` instead lists the `[services.<name>]` a diff touches (by directory) — change-based redeploy across languages, even non-Go. Feed selective CI: `gw affected --since main`. |
 | `gw doctor` | One-shot health check: missing/stale `go.work`, use entries with no `go.mod`, modules missing from `go.work`, un-hoisted `replace` directives, and version/directive drift. Exits non-zero on any error (`--strict` also fails on warnings). |
 | `gw config init` | Scaffold a commented starter `gw.toml` in the workspace root (won't clobber an existing config). `gw config path` prints the config file gw loads. See [Config](#config-optional-gwtoml). |
 | `gw verify` | Check the **release contract** workspace mode hides: every require on another workspace module must resolve to a **real published tag** whose code still matches what's on disk. Inside the workspace such a require resolves to local code, so `go build` passes even when the version was never tagged — `verify` runs the checks an external consumer (or `GOWORK=off` release build) would hit. Also flags local-path `replace` leaks, and prints a release plan in dependency order. Exits non-zero on errors (`--strict` also on warnings); `--json`. |
@@ -101,6 +101,29 @@ directory) or a shell command (run in `dir`, else the root). Hooks are keyed by
 event — `pre-`/`post-<command>` — the same events the [gwext SDK](#extensions-gwbuildgo)
 uses. A compiled extension wins any name/event collision; config fills the rest.
 For real logic (loops, conditionals), use a `.gw/build.go` extension.
+
+### Services (polyglot `affected`)
+
+A Go module is a *build* unit; a **service** is a *deployable* unit — and it need
+not be Go. Declare deployable dirs so `gw affected --since <ref> --services` reports
+which ones a diff touches (by directory), even non-Go ones the Go workspace can't
+see. Change-based redeploy across languages:
+
+```toml
+[services.api]
+path = "svc/api"                # dir (relative to root); defaults to the name
+
+[services.sat]                  # a Rust service — no go.mod, still tracked
+path = "sat"
+lang = "rust"                   # informational
+build = "cargo build --release" # informational (used by deploy tooling, not gw core)
+port = 8080
+```
+
+gw core only uses `path` (the rest is metadata for a deploy step / boot extension).
+`gw affected --since main --services` prints the affected service names, one per
+line — pipe it straight into your deploy. In `--json`, affected services appear
+under `services` alongside `seeds`/`impacted`.
 
 ## CI (GitHub Action)
 

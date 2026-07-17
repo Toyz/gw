@@ -233,7 +233,7 @@ func toolAffected() Tool {
 			if a.Since == "" {
 				return "", fmt.Errorf("`since` is required (a git ref)")
 			}
-			root, mods, _, err := loadWorkspace(a.Root)
+			root, mods, cfg, err := loadWorkspace(a.Root)
 			if err != nil {
 				return "", err
 			}
@@ -247,9 +247,10 @@ func toolAffected() Tool {
 			}
 			g := workspace.BuildGraph(mods)
 			seeds, impacted := workspace.AffectedModules(g, mods, changed)
+			services := workspace.AffectedServices(root, cfg.Services, changed)
 			sort.Strings(seeds)
 			sort.Strings(impacted)
-			return toJSON(map[string]any{"since": a.Since, "seeds": seeds, "impacted": impacted})
+			return toJSON(map[string]any{"since": a.Since, "seeds": seeds, "impacted": impacted, "services": services})
 		},
 	}
 }

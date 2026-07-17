@@ -53,6 +53,12 @@ const FIELDS: { key: string; type: string; desc: string; tip: string }[] = [
     desc: "Lifecycle hooks keyed by event (pre-build, post-sync). Same shape as commands.",
     tip: '[hooks.pre-build]   steps = ["sqlc generate"]',
   },
+  {
+    key: "services",
+    type: "map",
+    desc: "Deployable units — even non-Go. gw affected --services reports which a diff touches, by directory.",
+    tip: '[services.sat]   path = "sat"   lang = "rust"',
+  },
 ];
 
 const FULL_SAMPLE = `# gw.toml — every field is optional; no file = zero config
@@ -111,6 +117,18 @@ steps = ["sqlc generate"]
 
 [hooks.post-sync]
 steps = ["proto:generate"]`;
+
+const SERVICES_SAMPLE = `# deployable units — even non-Go
+[services.api]
+path = "svc/api"              # dir; defaults to the name
+
+[services.sat]               # a Rust bird, no go.mod
+path = "sat"
+lang = "rust"                # metadata
+build = "cargo build --release"
+port = 8080
+
+# gw affected --since main --services  ->  sat`;
 
 const cfgStyles = css`
   .hero {
@@ -398,6 +416,38 @@ export class PageConfig extends LoomElement {
               </div>
             </div>
             <gw-code title="gw.toml" lang="toml" src={COMMANDS_SAMPLE} />
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">
+            <loom-icon name="package" size={14} /> Services (polyglot affected)
+          </div>
+          <div class="grid2">
+            <div class="doc">
+              <p>
+                A Go module is a <b>build</b> unit; a{" "}
+                <code>[services.&lt;name&gt;]</code> is a <b>deployable</b> unit —
+                and it need not be Go. Declare deployable dirs and{" "}
+                <code>gw affected --since &lt;ref&gt; --services</code> reports
+                which ones a diff touches (by directory), even a{" "}
+                <b>Rust service the Go workspace can't see</b>.
+              </p>
+              <p>
+                gw core only uses <code>path</code> (defaults to the name); the
+                rest — <code>lang</code>, <code>build</code>, <code>port</code>,{" "}
+                <code>image</code> — is metadata for a deploy step or a{" "}
+                <code>boot</code> extension. In <code>--json</code>, affected
+                services appear under <code>services</code> alongside{" "}
+                <code>seeds</code>/<code>impacted</code>.
+              </p>
+              <div class="note">
+                Change-based redeploy across languages: pipe{" "}
+                <code>gw affected --since main --services</code> straight into
+                your deploy — one service name per line.
+              </div>
+            </div>
+            <gw-code title="gw.toml" lang="toml" src={SERVICES_SAMPLE} />
           </div>
         </section>
 

@@ -44,6 +44,32 @@ type Config struct {
 	// Hooks declares lifecycle hooks natively, keyed by event: [hooks.<event>]
 	// (e.g. [hooks.pre-build]). Same shape as Commands.
 	Hooks map[string]ConfigCommand `toml:"hooks" yaml:"hooks"`
+	// Services declares deployable units in the repo, keyed by service name:
+	// [services.<name>]. Unlike a Go module (a build unit), a service is a
+	// runnable unit — and it need not be Go at all (e.g. a Rust binary). gw's Go
+	// features (workspace/lint) ignore services; `gw affected` maps a diff to the
+	// services it touches (by directory), so a polyglot monorepo gets
+	// change-based redeploy across languages.
+	Services map[string]Service `toml:"services" yaml:"services"`
+}
+
+// Service is a deployable unit declared in gw.toml/gw.yaml under
+// [services.<name>]. Only Path is required (defaults to the service name). The
+// rest is runtime metadata for tooling that deploys the service (e.g. a boot
+// extension) — gw core only uses Path, for `gw affected`.
+type Service struct {
+	// Path is the service's directory, relative to the workspace root (defaults
+	// to the service name). Ownership for `gw affected` is by this directory.
+	Path string `toml:"path" yaml:"path"`
+	// Build is the command that builds the service (e.g. "cargo build --release",
+	// "go build ./..."). Informational for gw core; used by deploy tooling.
+	Build string `toml:"build" yaml:"build"`
+	// Port is the service's listen port, if any. Informational.
+	Port int `toml:"port" yaml:"port"`
+	// Image is the container image name to build/run, if any. Informational.
+	Image string `toml:"image" yaml:"image"`
+	// Lang is a free-form language tag (e.g. "go", "rust"). Informational.
+	Lang string `toml:"lang" yaml:"lang"`
 }
 
 // ConfigCommand is a command or hook declared in gw.toml/gw.yaml: an ordered

@@ -101,6 +101,50 @@ func AffectedModules(g *Graph, mods []Module, changed []string) (seeds, impacted
 	return seeds, g.TransitiveDependents(seeds)
 }
 
+// AffectedServices maps changed files to the declared services that own them,
+// by directory (longest-prefix wins, like OwningModule). root is the workspace
+// root that service paths are relative to; changed are absolute file paths.
+// Returns the affected service names, sorted. Services with no path default to
+// their name as the directory.
+func AffectedServices(root string, services map[string]Service, changed []string) []string {
+	if len(services) == 0 {
+		return nil
+	}
+	type svc struct{ name, dir string }
+	dirs := make([]svc, 0, len(services))
+	for name, s := range services {
+		p := s.Path
+		if p == "" {
+			p = name
+		}
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(root, p)
+		}
+		dirs = append(dirs, svc{name, filepath.Clean(p)})
+	}
+
+	hit := map[string]bool{}
+	for _, f := range changed {
+		best, name := -1, ""
+		for _, s := range dirs {
+			if f == s.dir || strings.HasPrefix(f, s.dir+string(filepath.Separator)) {
+				if len(s.dir) > best {
+					best, name = len(s.dir), s.name
+				}
+			}
+		}
+		if name != "" {
+			hit[name] = true
+		}
+	}
+	out := make([]string, 0, len(hit))
+	for n := range hit {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // ModuleTagPrefix returns the git version-tag prefix for a module directory,
 // per Go's multi-module convention: a module in sub-directory "svc/api" tags as
 // "svc/api/vX.Y.Z", while a module at the repo root tags as "vX.Y.Z" (empty
