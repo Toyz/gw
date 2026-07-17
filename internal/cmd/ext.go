@@ -294,6 +294,11 @@ func attachExtCommands(rootCmd *cobra.Command) {
 func stripRootFlag(args []string) []string {
 	var out []string
 	for i := 0; i < len(args); i++ {
+		// Everything from a bare "--" on is literal: -C/--root there belong to the
+		// command being run, not to gw. Forward the separator and the rest as-is.
+		if args[i] == "--" {
+			return append(out, args[i:]...)
+		}
 		if _, span, ok := matchRootFlag(args, i); ok {
 			i += span - 1 // skip the flag (and its value, if separate)
 			continue
@@ -321,6 +326,9 @@ func earlyResolveRoot() (string, error) {
 
 func scanRootFlag(args []string) string {
 	for i := range args {
+		if args[i] == "--" {
+			break // -C/--root after "--" is a literal arg, not gw's flag
+		}
 		if v, _, ok := matchRootFlag(args, i); ok {
 			return v
 		}

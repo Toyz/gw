@@ -261,17 +261,42 @@ func parseEnvRef(s string) (name, def, op string, adv int) {
 		return "", "", "", 0
 	}
 	if s[1] == '{' {
-		end := strings.IndexByte(s, '}')
+		// Find the brace that matches s[1], counting nested "{"/"}" so a default
+		// expression can itself contain a "${...}" reference.
+		depth, end := 1, -1
+		for i := 2; i < len(s); i++ {
+			switch s[i] {
+			case '{':
+				depth++
+			case '}':
+				if depth--; depth == 0 {
+					end = i
+				}
+			}
+			if end >= 0 {
+				break
+			}
+		}
 		if end < 0 {
 			return "", "", "", 0
 		}
 		inner := s[2:end]
-		if before, after, ok := strings.Cut(inner, ":-"); ok {
-			name, def, op = before, after, ":-"
-		} else if before, after, ok := strings.Cut(inner, "-"); ok {
-			name, def, op = before, after, "-"
-		} else {
-			name = inner
+		// The operator is whatever immediately follows the variable name, so a
+		// "-" default that itself contains ":-" isn't mistaken for a ":-" op.
+		k := 0
+		for k < len(inner) && isNameByte(inner[k]) {
+			k++
+		}
+		name = inner[:k]
+		switch rest := inner[k:]; {
+		case rest == "":
+			// bare ${NAME}
+		case strings.HasPrefix(rest, ":-"):
+			op, def = ":-", rest[2:]
+		case rest[0] == '-':
+			op, def = "-", rest[1:]
+		default:
+			return "", "", "", 0 // unsupported operator → treat $ literally
 		}
 		if !validRefName(name) {
 			return "", "", "", 0

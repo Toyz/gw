@@ -70,39 +70,48 @@ func shouldSkipDir(root, path, name string, cfg Config) bool {
 	return false
 }
 
-// matchGlob matches a slash-separated path against a glob pattern. It supports a
-// trailing (or embedded) "**" to match across path segments; otherwise it falls
-// back to path.Match-style per-string matching on the full relative path.
+// matchGlob matches a slash-separated relative path against a glob pattern,
+// segment by segment. "**" matches zero or more whole path segments; within a
+// segment, filepath.Match syntax (*, ?, [..]) applies. A slashless pattern also
+// matches any single path segment (so "testdata" skips it at any depth), but a
+// pattern like "**/testdata" matches only a segment named exactly "testdata" —
+// never "testdata-fixtures".
 func matchGlob(pattern, rel string) bool {
 	pattern = filepath.ToSlash(pattern)
-	if strings.Contains(pattern, "**") {
-		// Split on "**" and require the literal parts to appear in order.
-		parts := strings.Split(pattern, "**")
-		idx := 0
-		for i, p := range parts {
-			p = strings.Trim(p, "/")
-			if p == "" {
-				continue
-			}
-			j := strings.Index(rel[idx:], p)
-			if j < 0 {
-				return false
-			}
-			// First part must anchor at the start.
-			if i == 0 && j != 0 {
-				return false
-			}
-			idx += j + len(p)
+	rel = filepath.ToSlash(rel)
+	if matchSegments(strings.Split(pattern, "/"), strings.Split(rel, "/")) {
+		return true
+	}
+	if !strings.Contains(pattern, "/") {
+		if ok, _ := filepath.Match(pattern, filepath.Base(rel)); ok {
+			return true
 		}
-		return true
 	}
-	ok, _ := filepath.Match(pattern, rel)
-	if ok {
-		return true
+	return false
+}
+
+// matchSegments reports whether the path segments name match the pattern
+// segments pat, treating "**" as zero-or-more segments.
+func matchSegments(pat, name []string) bool {
+	if len(pat) == 0 {
+		return len(name) == 0
 	}
-	// Also match against the final segment for convenience (e.g. "testdata").
-	ok, _ = filepath.Match(pattern, filepath.Base(rel))
-	return ok
+	if pat[0] == "**" {
+		// Collapse consecutive ** and try consuming 0..len(name) segments.
+		for i := 0; i <= len(name); i++ {
+			if matchSegments(pat[1:], name[i:]) {
+				return true
+			}
+		}
+		return false
+	}
+	if len(name) == 0 {
+		return false
+	}
+	if ok, err := filepath.Match(pat[0], name[0]); err != nil || !ok {
+		return false
+	}
+	return matchSegments(pat[1:], name[1:])
 }
 
 // FindRoot searches upward from start for a directory containing go.work.

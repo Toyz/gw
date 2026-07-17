@@ -15,6 +15,7 @@ import (
 	"sort"
 
 	"github.com/toyz/gw/gwext"
+	"golang.org/x/mod/modfile"
 )
 
 const (
@@ -184,20 +185,51 @@ func modulesReader(mods []gwext.Module) io.Reader {
 	return bytes.NewReader(data)
 }
 
+type hashedFile struct {
+	rel  string
+	data []byte
+}
+
 // hashDir returns a hex SHA-256 over the sorted (relpath, content) of every file
-// under dir, skipping the bin/ cache subtree.
+// under dir (skipping bin/ and other vendored/VCS subtrees), plus the files under
+// any local `replace` target in dir/go.mod — so editing a filesystem-replaced
+// dependency's source outside .gw still busts the cache.
 func hashDir(dir string) (string, error) {
-	type file struct {
-		rel  string
-		data []byte
+	files, err := collectFiles(dir, "")
+	if err != nil {
+		return "", err
 	}
-	var files []file
+	for i, target := range localReplaceTargets(dir) {
+		tf, terr := collectFiles(target, fmt.Sprintf("replace%d/", i))
+		if terr != nil {
+			// A missing/unreadable replace target will surface at build time with
+			// a clearer error; don't fail hashing over it.
+			continue
+		}
+		files = append(files, tf...)
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].rel < files[j].rel })
+	h := sha256.New()
+	for _, f := range files {
+		fmt.Fprintf(h, "%s\x00%d\x00", f.rel, len(f.data))
+		h.Write(f.data)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// skipHashDir names directories never descended into while hashing.
+var skipHashDir = map[string]bool{"bin": true, ".git": true, "vendor": true, "node_modules": true}
+
+// collectFiles reads every file under dir (skipping skipHashDir subtrees) and
+// returns them with a namespaced, slash-separated relative path.
+func collectFiles(dir, prefix string) ([]hashedFile, error) {
+	var files []hashedFile
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if d.Name() == "bin" && path != dir {
+			if path != dir && skipHashDir[d.Name()] {
 				return fs.SkipDir
 			}
 			return nil
@@ -207,19 +239,36 @@ func hashDir(dir string) (string, error) {
 			return rerr
 		}
 		rel, _ := filepath.Rel(dir, path)
-		files = append(files, file{filepath.ToSlash(rel), data})
+		files = append(files, hashedFile{prefix + filepath.ToSlash(rel), data})
 		return nil
 	})
+	return files, err
+}
+
+// localReplaceTargets returns the absolute directories of every filesystem
+// `replace` target in dir/go.mod (i.e. a replacement with no version), resolved
+// relative to dir. Returns nil if there is no go.mod or it can't be parsed.
+func localReplaceTargets(dir string) []string {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 	if err != nil {
-		return "", err
+		return nil
 	}
-	sort.Slice(files, func(i, j int) bool { return files[i].rel < files[j].rel })
-	h := sha256.New()
-	for _, f := range files {
-		fmt.Fprintf(h, "%s\x00%d\x00", f.rel, len(f.data))
-		h.Write(f.data)
+	mf, err := modfile.Parse("go.mod", data, nil)
+	if err != nil {
+		return nil
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	var out []string
+	for _, r := range mf.Replace {
+		if r.New.Version != "" || r.New.Path == "" {
+			continue // version replacement, not a local path
+		}
+		target := r.New.Path
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(dir, target)
+		}
+		out = append(out, filepath.Clean(target))
+	}
+	return out
 }
 
 func isExecutable(path string) bool {

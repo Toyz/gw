@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"sort"
+	"strings"
 
 	"golang.org/x/mod/semver"
 )
@@ -155,12 +156,8 @@ func pickVersion(sortedDesc []string, strategy Strategy) string {
 // semver.Compare; otherwise it falls back to lexical comparison so
 // non-canonical directive values (like "1.25.0") still order deterministically.
 func compareVer(a, b string) int {
-	as, bs := "v"+a, "v"+b
-	if semver.IsValid(as) && semver.IsValid(bs) {
+	if as, bs := toSemver(a), toSemver(b); as != "" && bs != "" {
 		return semver.Compare(as, bs)
-	}
-	if semver.IsValid(a) && semver.IsValid(b) {
-		return semver.Compare(a, b)
 	}
 	switch {
 	case a < b:
@@ -170,4 +167,19 @@ func compareVer(a, b string) int {
 	default:
 		return 0
 	}
+}
+
+// toSemver canonicalizes a version for semver comparison, or returns "" if it
+// isn't semver-shaped. It handles dependency versions ("v0.9.1"), bare `go`
+// directives ("1.25.0"), and `toolchain` values ("go1.26.0") uniformly — so
+// e.g. "go1.10.0" sorts above "go1.9.0" instead of lexically below it.
+func toSemver(v string) string {
+	v = strings.TrimPrefix(v, "go")
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
+	}
+	if semver.IsValid(v) {
+		return v
+	}
+	return ""
 }
