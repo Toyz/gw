@@ -1,8 +1,10 @@
 # gw
 
-`gw` makes Go workspaces (`go.work`) usable at scale. It auto-generates and
-maintains `go.work`, lints cross-module dependency versions, and runs commands
-across every module — the way `dotnet sln` and Cargo workspaces already work.
+`gw` is the workflow tool for **Go monorepos**. It turns a multi-module repo —
+many `go.mod` under one roof — into a coherent workspace: it auto-generates and
+maintains `go.work`, keeps one dependency version across modules, runs the go
+tool everywhere, and tells you exactly what a change affects. What Nx and
+Turborepo are for JavaScript, and Cargo workspaces are for Rust — for Go.
 
 ## Install
 

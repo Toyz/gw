@@ -336,15 +336,16 @@ export class PageHome extends LoomElement {
         <div class="hero">
           <div>
             <div class="kicker mono">
-              <b>//</b> the go.work workspace manager
+              <b>//</b> the Go monorepo toolkit
             </div>
             <h1>
-              Go workspaces that actually <em>scale</em>.
+              Your Go monorepo, <em>managed</em>.
             </h1>
             <p class="lead">
-              One binary to generate and maintain <code>go.work</code>, lint
-              dependency versions across modules, run the go tool everywhere,
-              and extend it all with compiled Go.
+              gw turns a multi-module Go repo into a real monorepo — one binary
+              to maintain <code>go.work</code>, hold one dependency version
+              across modules, run the go tool everywhere, test only what a change
+              touched, and extend it all in compiled Go.
             </p>
             <div class="install">
               <code>
