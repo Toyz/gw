@@ -1,6 +1,5 @@
 import { LoomElement, component, css, inject, styles } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
-import { yamlLines } from "../highlight";
 import { REPO } from "../data";
 import { RepoService } from "../repo";
 import { base } from "../styles";
@@ -50,19 +49,6 @@ function inputs(tag: string) {
   ];
 }
 
-function codeWin(title: string, src: string) {
-  return (
-    <div class="win code">
-      <div class="win-bar">
-        <span class="dot" />
-        <span class="dot" />
-        <span class="dot" />
-        <span class="win-title">{title}</span>
-      </div>
-      <div class="win-body">{yamlLines(src)}</div>
-    </div>
-  );
-}
 
 const ciStyles = css`
   .hero {
@@ -328,7 +314,7 @@ export class PageCI extends LoomElement {
               )}
             </div>
           </div>
-          {codeWin(".github/workflows/ci.yml", MINIMAL)}
+          <gw-code title=".github/workflows/ci.yml" lang="yaml" src={MINIMAL} />
         </div>
 
         <section>
@@ -368,7 +354,7 @@ export class PageCI extends LoomElement {
                 <code>affected</code> the history it needs to diff.
               </p>
             </div>
-            {codeWin("pull_request", AFFECTED)}
+            <gw-code title="pull_request" lang="yaml" src={AFFECTED} />
           </div>
 
           <div class="recipe">
@@ -379,7 +365,7 @@ export class PageCI extends LoomElement {
                 set drifted from the modules on disk — no writes.
               </p>
             </div>
-            {codeWin("step", SYNC)}
+            <gw-code title="step" lang="yaml" src={SYNC} />
           </div>
         </section>
       </div>

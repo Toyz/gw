@@ -25,6 +25,9 @@ function navItems(
     <loom-link to="/" class={active("/")}>
       Overview
     </loom-link>,
+    <loom-link to="/recipes" class={active("/recipes")}>
+      Recipes
+    </loom-link>,
     <loom-link to="/extensions" class={active("/extensions")}>
       Extensions
     </loom-link>,
@@ -68,6 +71,9 @@ function mobileMenu(
     <div class="nav-drop">
       <loom-link to="/" class={"m-link " + active("/")}>
         Overview
+      </loom-link>
+      <loom-link to="/recipes" class={"m-link " + active("/recipes")}>
+        Recipes
       </loom-link>
       <loom-link to="/extensions" class={"m-link " + active("/extensions")}>
         Extensions

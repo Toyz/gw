@@ -1,7 +1,6 @@
 import { LoomElement, component, styles, css } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
 import { base } from "../styles";
-import { tomlLines, yamlLines } from "../highlight";
 import "../tip"; // registers the `tip` hover-tooltip attribute
 
 const IGNORE_DEFAULTS = [
@@ -112,20 +111,6 @@ steps = ["sqlc generate"]
 
 [hooks.post-sync]
 steps = ["proto:generate"]`;
-
-function win(title: string, render: () => unknown) {
-  return (
-    <div class="win code">
-      <div class="win-bar">
-        <span class="dot" />
-        <span class="dot" />
-        <span class="dot" />
-        <span class="win-title">{title}</span>
-      </div>
-      <div class="win-body">{render()}</div>
-    </div>
-  );
-}
 
 const cfgStyles = css`
   .hero {
@@ -313,7 +298,7 @@ export class PageConfig extends LoomElement {
               required. Every field is optional.
             </p>
           </div>
-          {win("gw.toml", () => tomlLines(FULL_SAMPLE))}
+          <gw-code title="gw.toml" lang="toml" src={FULL_SAMPLE} />
         </div>
 
         <section>
@@ -334,23 +319,17 @@ export class PageConfig extends LoomElement {
                 <code>gw.yml</code>).
               </p>
             </div>
-            <div class="win">
-              <div class="win-bar">
-                <span class="dot" />
-                <span class="dot" />
-                <span class="dot" />
-                <span class="win-title">scaffold</span>
-              </div>
-              <div class="win-body">
-                <div class="ln prompt">
-                  <span class="p">$ </span>gw config init
-                </div>
-                <div class="ln ok">✓ wrote gw.toml</div>
-                <div class="ln dim">
-                  help: every field is commented out — uncomment what you need
-                </div>
-              </div>
-            </div>
+            <gw-term
+              title="scaffold"
+              lines={[
+                { c: "prompt", t: "gw config init" },
+                { c: "ok", t: "✓ wrote gw.toml" },
+                {
+                  c: "dim",
+                  t: "help: every field is commented out — uncomment what you need",
+                },
+              ]}
+            />
           </div>
         </section>
 
@@ -407,13 +386,18 @@ export class PageConfig extends LoomElement {
                 ). Any other string is a <b>shell command</b> (run in{" "}
                 <code>dir</code>, else the root). Mix them freely.
               </p>
+              <p>
+                Module-relative go tools want the <code>module:verb</code> form —
+                a bare <code>go generate ./...</code> shell step runs from the
+                root, which has no <code>go.mod</code>, and fails.
+              </p>
               <div class="note">
                 A compiled extension wins any name/event collision; config fills
                 the rest. For real logic — loops, conditionals — reach for a{" "}
                 <code>.gw/build.go</code> extension.
               </div>
             </div>
-            {win("gw.toml", () => tomlLines(COMMANDS_SAMPLE))}
+            <gw-code title="gw.toml" lang="toml" src={COMMANDS_SAMPLE} />
           </div>
         </section>
 
@@ -434,7 +418,7 @@ export class PageConfig extends LoomElement {
                 <code>env_files</code>).
               </p>
             </div>
-            {win("gw.yaml", () => yamlLines(YAML_SAMPLE))}
+            <gw-code title="gw.yaml" lang="yaml" src={YAML_SAMPLE} />
           </div>
         </section>
 
@@ -460,7 +444,7 @@ export class PageConfig extends LoomElement {
                 ))}
               </div>
             </div>
-            {win("gw.toml", () => tomlLines(DISCOVERY_SAMPLE))}
+            <gw-code title="gw.toml" lang="toml" src={DISCOVERY_SAMPLE} />
           </div>
         </section>
 
@@ -481,7 +465,7 @@ export class PageConfig extends LoomElement {
                 <code>gw lint</code> still reports the drift.
               </p>
             </div>
-            {win("gw.toml", () => tomlLines(PINS_SAMPLE))}
+            <gw-code title="gw.toml" lang="toml" src={PINS_SAMPLE} />
           </div>
         </section>
 
@@ -511,7 +495,7 @@ export class PageConfig extends LoomElement {
                 config and the CLI flags.
               </div>
             </div>
-            {win("gw.toml", () => tomlLines(ENV_SAMPLE))}
+            <gw-code title="gw.toml" lang="toml" src={ENV_SAMPLE} />
           </div>
         </section>
       </div>

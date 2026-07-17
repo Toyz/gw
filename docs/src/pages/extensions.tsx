@@ -1,8 +1,8 @@
 import { LoomElement, component, styles, css } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
 import { base } from "../styles";
-import { codeLines } from "../highlight";
 import { GODOC } from "../data";
+import { cmdLines } from "../win";
 
 const HOOK_COMMANDS = [
   "init", "sync", "lint", "doctor", "verify", "build", "test", "vet",
@@ -95,19 +95,6 @@ gwext.Command("web", "dev server",
         return c.Mod("web").Tool("yarn").Run("dev")
     })`;
 
-function codeWin(title: string, src: string) {
-  return (
-    <div class="win code">
-      <div class="win-bar">
-        <span class="dot" />
-        <span class="dot" />
-        <span class="dot" />
-        <span class="win-title">{title}</span>
-      </div>
-      <div class="win-body">{codeLines(src)}</div>
-    </div>
-  );
-}
 
 const extStyles = css`
   .hero {
@@ -254,29 +241,7 @@ export class PageExtensions extends LoomElement {
               <loom-icon name="arrow-right" size={13} />
             </a>
           </div>
-          <div class="win term">
-            <div class="win-bar">
-              <span class="dot" />
-              <span class="dot" />
-              <span class="dot" />
-              <span class="win-title">scaffold</span>
-            </div>
-            <div class="win-body">
-              {SCAFFOLD.split("\n").map((l) => {
-                const body = l.replace(/^\$ /, "");
-                const hi = body.indexOf("#");
-                const cmd = hi >= 0 ? body.slice(0, hi) : body;
-                const comment = hi >= 0 ? body.slice(hi) : "";
-                return (
-                  <div class="ln prompt">
-                    <span class="p">$ </span>
-                    {cmd}
-                    {comment ? <span class="cm">{comment}</span> : ""}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <gw-term title="scaffold" lines={cmdLines(SCAFFOLD)} />
         </div>
 
         <section>
@@ -297,7 +262,7 @@ export class PageExtensions extends LoomElement {
                 plus <code>.Tool(bin)</code> for anything else.
               </p>
             </div>
-            {codeWin(".gw/build.go", CMD_SAMPLE)}
+            <gw-code title=".gw/build.go" lang="go" src={CMD_SAMPLE} />
           </div>
         </section>
 
@@ -324,7 +289,7 @@ export class PageExtensions extends LoomElement {
                 <code>gw ext list</code>; an unknown flag errors out.
               </p>
             </div>
-            {codeWin(".gw/build.go", FLAGS_SAMPLE)}
+            <gw-code title=".gw/build.go" lang="go" src={FLAGS_SAMPLE} />
           </div>
         </section>
 
@@ -354,7 +319,7 @@ export class PageExtensions extends LoomElement {
                 works but is deprecated.
               </div>
             </div>
-            {codeWin(".gw/build.go", HOOK_SAMPLE)}
+            <gw-code title=".gw/build.go" lang="go" src={HOOK_SAMPLE} />
           </div>
         </section>
 
@@ -377,7 +342,7 @@ export class PageExtensions extends LoomElement {
                 woven into <code>build</code>/<code>test</code>/<code>vet</code>.
               </div>
             </div>
-            {codeWin(".gw/build.go", PROVIDE_SAMPLE)}
+            <gw-code title=".gw/build.go" lang="go" src={PROVIDE_SAMPLE} />
           </div>
         </section>
 
@@ -397,7 +362,7 @@ export class PageExtensions extends LoomElement {
                 per-module values layer on top.
               </p>
             </div>
-            {codeWin(".gw/build.go", EACH_SAMPLE)}
+            <gw-code title=".gw/build.go" lang="go" src={EACH_SAMPLE} />
           </div>
         </section>
 
@@ -426,7 +391,7 @@ export class PageExtensions extends LoomElement {
                 <code>Provide</code>, not <code>ProvideEach</code>.
               </div>
             </div>
-            {codeWin(".gw/build.go", BUILTINS_SAMPLE)}
+            <gw-code title=".gw/build.go" lang="go" src={BUILTINS_SAMPLE} />
           </div>
         </section>
 
@@ -460,7 +425,7 @@ export class PageExtensions extends LoomElement {
                 env still apply.
               </div>
             </div>
-            {codeWin(".gw/build.go", OVERRIDE_SAMPLE)}
+            <gw-code title=".gw/build.go" lang="go" src={OVERRIDE_SAMPLE} />
           </div>
         </section>
 
@@ -477,7 +442,7 @@ export class PageExtensions extends LoomElement {
                 processes like dev servers.
               </p>
             </div>
-            {codeWin(".gw/build.go", TOOL_SAMPLE)}
+            <gw-code title=".gw/build.go" lang="go" src={TOOL_SAMPLE} />
           </div>
         </section>
       </div>

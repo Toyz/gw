@@ -38,12 +38,12 @@ export const FEATURES: Feature[] = [
   {
     icon: "package",
     title: "Extends in Go",
-    body: "A compiled .gw/build.go adds commands, hooks, and build providers — and can override or hide builtins.",
+    body: "A compiled .gw/build.go adds commands, hooks, and build providers — override or hide builtins, and stamp git/CI version metadata for free.",
   },
   {
     icon: "layers",
-    title: "Barely configured",
-    body: "Works with none. A gw.toml (or gw.yaml) adds ignore globs, version pins, and opt-in environment injection.",
+    title: "Config or code",
+    body: "Zero-config to start. gw.toml adds ignore globs, version pins, and env — and declares custom commands + lifecycle hooks, no compiled extension needed.",
   },
 ];
 

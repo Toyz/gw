@@ -9,7 +9,6 @@ import {
 import { clipboard } from "@toyz/loom/element";
 import { route } from "@toyz/loom/router";
 import { COMMAND_GROUPS, FEATURES, INSTALL, REPO, SESSION } from "../data";
-import { codeLines } from "../highlight";
 import { RepoService } from "../repo";
 import { base } from "../styles";
 
@@ -457,15 +456,7 @@ export class PageHome extends LoomElement {
                 <loom-icon name="arrow-right" size={14} color="var(--amber)" />
               </loom-link>
             </div>
-            <div class="win code">
-              <div class="win-bar">
-                <span class="dot" />
-                <span class="dot" />
-                <span class="dot" />
-                <span class="win-title">.gw/build.go</span>
-              </div>
-              <div class="win-body">{codeLines(EXT_SAMPLE)}</div>
-            </div>
+            <gw-code title=".gw/build.go" lang="go" src={EXT_SAMPLE} />
           </div>
         </section>
       </div>

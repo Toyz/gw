@@ -283,11 +283,42 @@ export const base = css`
     border-radius: 50%;
     background: #2b323b;
   }
+  /* A muted traffic-light nod in the site's own palette — not loud macOS
+     primaries. The 4th child (.win-title) is left untouched. */
+  .win-bar .dot {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .win-bar .dot:nth-child(1) {
+    background: var(--rose);
+  }
+  .win-bar .dot:nth-child(2) {
+    background: var(--amber);
+  }
+  .win-bar .dot:nth-child(3) {
+    background: var(--green);
+  }
+  /* Silly per-dot hover: only the dot you're actually over pops + glows. */
+  .win-bar .dot:hover {
+    transform: scale(1.35);
+  }
+  .win-bar .dot:nth-child(1):hover {
+    box-shadow: 0 0 9px -1px var(--rose);
+  }
+  .win-bar .dot:nth-child(2):hover {
+    box-shadow: 0 0 9px -1px var(--amber);
+  }
+  .win-bar .dot:nth-child(3):hover {
+    box-shadow: 0 0 9px -1px var(--green);
+  }
   .win-title {
     margin-left: 0.5rem;
     font-family: var(--mono);
     font-size: 0.76rem;
     color: var(--dim);
+  }
+  /* Copy button sits at the far right of the title bar. */
+  .win-bar gw-copy {
+    margin-left: auto;
   }
   .win-body {
     padding: 1.15rem 1.35rem 1.4rem;
@@ -314,6 +345,9 @@ export const base = css`
   .ln.add,
   .ln.ok {
     color: var(--green);
+  }
+  .ln.fail {
+    color: var(--rose);
   }
   .ln.path {
     color: var(--teal);

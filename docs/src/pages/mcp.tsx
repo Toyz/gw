@@ -1,6 +1,7 @@
 import { LoomElement, component, styles, css } from "@toyz/loom";
 import { route } from "@toyz/loom/router";
 import { base } from "../styles";
+import { cmdLines } from "../win";
 
 const REGISTER = `$ claude mcp add gw -- gw mcp
 $ # the agent now has gw_list, gw_lint,
@@ -51,30 +52,10 @@ const TOOLS = [
   },
 ];
 
-function term(title: string, src: string) {
-  return (
-    <div class="win term">
-      <div class="win-bar">
-        <span class="dot" />
-        <span class="dot" />
-        <span class="dot" />
-        <span class="win-title">{title}</span>
-      </div>
-      <div class="win-body">
-        {src.split("\n").map((l) => {
-          const body = l.replace(/^\$ /, "");
-          const isComment = body.startsWith("#");
-          return (
-            <div class="ln prompt">
-              <span class="p">$ </span>
-              {isComment ? <span class="cm">{body}</span> : body}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+const AGENT_LOOP = `$ gw_affected  { since: "main" }
+$ # -> impacted: [api, gateway]
+$ gw_test  { packages: "./..." }
+$ # -> 2 modules, 0 failed`;
 
 const mcpStyles = css`
   .hero {
@@ -265,7 +246,7 @@ export class PageMCP extends LoomElement {
               shelling out, structured JSON in reply.
             </p>
           </div>
-          {term("register", REGISTER)}
+          <gw-term title="register" lines={cmdLines(REGISTER)} />
         </div>
 
         <section>
@@ -311,13 +292,7 @@ export class PageMCP extends LoomElement {
                 inherit hooks and build providers.
               </p>
             </div>
-            {term(
-              "agent loop",
-              `$ gw_affected  { since: "main" }
-$ # -> impacted: [api, gateway]
-$ gw_test  { packages: "./..." }
-$ # -> 2 modules, 0 failed`,
-            )}
+            <gw-term title="agent loop" lines={cmdLines(AGENT_LOOP)} />
           </div>
           <div class="note">
             <b>Every tool takes an optional root</b> — it defaults to the nearest{" "}
