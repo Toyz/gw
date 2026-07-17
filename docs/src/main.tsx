@@ -9,6 +9,7 @@ import { RepoService } from "./repo";
 import "./app"; // shell
 import "./pages/home";
 import "./pages/extensions";
+import "./pages/config";
 import "./pages/ci";
 
 const router = new LoomRouter({ mode: "hash" });

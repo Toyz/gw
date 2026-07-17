@@ -28,6 +28,7 @@ go install github.com/toyz/gw@latest
 | `gw graph` | Print the intra-workspace dependency DAG (edge A->B = A requires B). Text, `--dot` (Graphviz), or `--json`. Edges come from direct/indirect requires and local `replace` targets. |
 | `gw affected --since <ref>` | Diff the working tree against a git ref, map changed files to owning modules, and walk the DAG to every impacted module. `--seeds` (only directly-changed), `--dir`, `--json`. Feed selective CI: `gw affected --since main`. |
 | `gw doctor` | One-shot health check: missing/stale `go.work`, use entries with no `go.mod`, modules missing from `go.work`, un-hoisted `replace` directives, and version/directive drift. Exits non-zero on any error (`--strict` also fails on warnings). |
+| `gw config init` | Scaffold a commented starter `gw.toml` in the workspace root (won't clobber an existing config). `gw config path` prints the config file gw loads. See [Config](#config-optional-gwtoml). |
 | `gw verify` | Check the **release contract** workspace mode hides: every require on another workspace module must resolve to a **real published tag** whose code still matches what's on disk. Inside the workspace such a require resolves to local code, so `go build` passes even when the version was never tagged — `verify` runs the checks an external consumer (or `GOWORK=off` release build) would hit. Also flags local-path `replace` leaks, and prints a release plan in dependency order. Exits non-zero on errors (`--strict` also on warnings); `--json`. |
 
 `-C, --root <dir>` sets the workspace root (default: nearest ancestor with a
@@ -35,9 +36,10 @@ go install github.com/toyz/gw@latest
 
 ## Config (optional `gw.toml`)
 
-Zero-config works. To customize, drop a `gw.toml` at the workspace root (TOML is
-preferred; a `gw.yaml` / `gw.yml` with the same keys still works — if both exist,
-`gw.toml` wins):
+Zero-config works. To customize, run `gw config init` for a commented starter
+`gw.toml` in the workspace root (`gw config path` prints the file gw loads). TOML
+is preferred; a `gw.yaml` / `gw.yml` with the same keys still works — if both
+exist, `gw.toml` wins:
 
 ```toml
 root = "."
@@ -70,6 +72,32 @@ the place for workspace-wide settings. The `--env*` flags are per-invocation and
 scoped to that command's module runs. Dotenv files support `# comments`, a
 leading `export `, and single/double quotes (`\n \t \r \" \\` inside double
 quotes); values are otherwise literal (no `$VAR` interpolation).
+
+### Commands & hooks (no `.gw/build.go`)
+
+Declare custom commands and lifecycle hooks right in the config — run natively by
+gw, no compiled extension needed:
+
+```toml
+[commands.boot]                 # adds `gw boot`
+desc = "build services, then codegen"
+steps = [
+  "worker:build",               # <module>:<verb> → go build ./... in the module
+  "api:build",
+  "sqlc generate",              # any other string → shell command
+]
+dir = "services"                # working dir for shell steps
+
+[hooks.pre-build]               # runs before `gw build`
+steps = ["sqlc generate"]
+```
+
+Each step is either `<module>:<verb>` (verb ∈
+`build test vet generate tidy run`, run as that go command in the module's
+directory) or a shell command (run in `dir`, else the root). Hooks are keyed by
+event — `pre-`/`post-<command>` — the same events the [gwext SDK](#extensions-gwbuildgo)
+uses. A compiled extension wins any name/event collision; config fills the rest.
+For real logic (loops, conditionals), use a `.gw/build.go` extension.
 
 ## CI (GitHub Action)
 
@@ -184,11 +212,18 @@ needs are one line — e.g. stamp the git SHA into your binary for free:
 ```go
 gwext.Provide(gwext.GitStamp("example.com/app/version")) // -ldflags -X the commit/branch/tag/time
 gwext.Provide(gwext.GitEnv())                            // export GW_GIT_COMMIT, GW_GIT_BRANCH, ...
+
+// In CI, prefer the runner's env — reliable on shallow / detached checkouts:
+gwext.Provide(gwext.CIStamp("example.com/app/version")) // GitHub Actions + GitLab CI
+gwext.Provide(gwext.CIEnv())                            // export GW_CI_COMMIT, GW_CI_TAG, ...
 ```
 
 `GitStamp` fills string vars in the named package (`Commit`, `Short`, `Branch`,
-`Tag`, `Time`, `Dirty`); because `-X` only affects the module that links that
-package, the stamp lands there alone. Roll your own for anything else:
+`Tag`, `Time`, `Dirty`); `CIStamp` fills the CI-sourced set (`Provider`,
+`Commit`, `Ref`, `Tag`, `RunID`, `Repo`, `Actor`). Because `-X` only affects the
+module that links the package, the stamp lands there alone. Git/CI built-ins are
+workspace-global — pair them with `Provide`, not `ProvideEach`. Roll your own for
+anything else:
 
 ```go
 gwext.Provide(func(c *gwext.Context) (gwext.BuildInfo, error) {
@@ -203,7 +238,8 @@ gwext.Provide(func(c *gwext.Context) (gwext.BuildInfo, error) {
 `Env` layers into every command between config and `--env` (so `--env` still
 wins). `Vars` become `-ldflags "-X key=value"` and `Tags` become `-tags` on the
 compiling commands. Providers may print freely — that goes to stderr, never the
-result. `gwext.Git(dir)` returns the raw `GitInfo` if you want to build your own.
+result. `gwext.Git(dir)` and `gwext.CI()` return the raw `GitInfo` / `CIInfo` for
+building your own.
 
 **Overriding builtins — decorate, don't shadow.** A plain `gwext.Command` whose
 name collides with a builtin is ignored (builtins win). To extend one, register

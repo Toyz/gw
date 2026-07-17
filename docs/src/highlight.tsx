@@ -1,55 +1,81 @@
-const GO_KW = new Set([
-  "import", "func", "return", "package", "var", "const", "type", "range",
-  "for", "if", "else", "go", "defer", "map", "struct", "interface", "chan",
-]);
+/**
+ * A tiny syntax highlighter: one token engine driven by per-language rule
+ * tables. A rule is [sticky regex, token class]; `tokenize` walks a line left to
+ * right, emitting the first rule that matches at the cursor and accumulating
+ * unmatched runs as plain text. Adding a language is just another table — no
+ * per-language function, no duplicated keyword/comment plumbing.
+ *
+ * Token classes (.k .s .fn .cm .pu .yk) are colored by base styles' .win-body.
+ */
 
-// hlGo tokenizes one line of Go into colored spans: strings, keywords, function
-// calls, comments. Samples are controlled (no `//` inside strings), so a small
-// regex is enough — no full parser needed. Render inside a `.win-body` for the
-// token colors defined in base styles.
-export function hlGo(line: string) {
-  if (line.trim() === "") return " ";
-  const ci = line.indexOf("//");
-  const code = ci >= 0 ? line.slice(0, ci) : line;
-  const comment = ci >= 0 ? line.slice(ci) : "";
+type Rule = [re: RegExp, cls: string];
+
+// tokenize highlights one line. Rule regexes MUST carry the sticky (y) flag so
+// `exec` anchors at the cursor. Earlier rules win; put strings above comments so
+// a `#`/`//` inside a string is never read as a comment.
+function tokenize(line: string, rules: Rule[]): unknown[] {
   const out: unknown[] = [];
-  const re = /("(?:[^"\\]|\\.)*")|([A-Za-z_][A-Za-z0-9_]*)|(\s+)|([^\sA-Za-z_"]+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(code))) {
-    if (m[1]) out.push(<span class="s">{m[1]}</span>);
-    else if (m[2]) {
-      if (GO_KW.has(m[2])) out.push(<span class="k">{m[2]}</span>);
-      else if (code[re.lastIndex] === "(") out.push(<span class="fn">{m[2]}</span>);
-      else out.push(m[2]);
-    } else if (m[3]) out.push(m[3]);
-    else if (m[4]) out.push(<span class="pu">{m[4]}</span>);
+  let plain = "";
+  const flush = () => {
+    if (plain) {
+      out.push(plain);
+      plain = "";
+    }
+  };
+  for (let i = 0; i < line.length; ) {
+    let matched = false;
+    for (const [re, cls] of rules) {
+      re.lastIndex = i;
+      const m = re.exec(line);
+      if (m && m[0]) {
+        flush();
+        out.push(<span class={cls}>{m[0]}</span>);
+        i += m[0].length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) plain += line[i++];
   }
-  if (comment) out.push(<span class="cm">{comment}</span>);
-  return out;
+  flush();
+  return out.length ? out : [" "]; // preserve blank-line height
 }
 
-// codeLines renders a Go snippet as highlighted `.cl` rows (for a `.win-body`).
-export function codeLines(src: string) {
-  return src.split("\n").map((line) => <div class="cl">{hlGo(line)}</div>);
+// ── Language rule tables ──
+
+const GO: Rule[] = [
+  [/\/\/.*/y, "cm"],
+  [/"(?:[^"\\]|\\.)*"/y, "s"],
+  [/\b(?:import|func|return|package|var|const|type|range|for|if|else|go|defer|map|struct|interface|chan)\b/y, "k"],
+  [/[A-Za-z_]\w*(?=\()/y, "fn"], // identifier immediately before "(" is a call
+  [/[^\s\w"]+/y, "pu"],
+];
+
+// TOML + YAML share the engine; only the key delimiter (= vs :) and section
+// syntax differ. `[section]` is anchored to line start (^) so a mid-line array
+// value like `["a"]` is never mistaken for a header.
+const TOML: Rule[] = [
+  [/^\[\[?[^\]]*\]\]?/y, "k"],
+  [/(?:"[^"]*"|[\w.-]+)(?=\s*=)/y, "yk"],
+  [/"(?:[^"\\]|\\.)*"/y, "s"],
+  [/#.*/y, "cm"],
+  [/[^\s\w".-]+/y, "pu"],
+];
+
+const YAML: Rule[] = [
+  [/#.*/y, "cm"],
+  [/"(?:[^"\\]|\\.)*"/y, "s"],
+  [/[\w.-]+(?=:)/y, "yk"],
+  [/[^\s\w".-]+/y, "pu"],
+];
+
+// ── Public: one renderer per language ──
+
+// render splits a snippet into highlighted `.cl` rows for a `.win-body`.
+function render(src: string, rules: Rule[]) {
+  return src.split("\n").map((line) => <div class="cl">{tokenize(line, rules)}</div>);
 }
 
-// hlYaml colors YAML: keys (`.yk`) and comments (`.cm`); values stay plain.
-export function hlYaml(line: string) {
-  const hi = line.indexOf("#");
-  const hasComment = hi >= 0 && (hi === 0 || line[hi - 1] === " ");
-  const code = hasComment ? line.slice(0, hi) : line;
-  const comment = hasComment ? line.slice(hi) : "";
-  const out: unknown[] = [];
-  const m = code.match(/^(\s*(?:- )?)([\w.-]+)(:)(.*)$/);
-  if (m) {
-    out.push(m[1], <span class="yk">{m[2]}</span>, <span class="pu">{m[3]}</span>, m[4]);
-  } else {
-    out.push(code || " ");
-  }
-  if (comment) out.push(<span class="cm">{comment}</span>);
-  return out;
-}
-
-export function yamlLines(src: string) {
-  return src.split("\n").map((line) => <div class="cl">{hlYaml(line)}</div>);
-}
+export const codeLines = (src: string) => render(src, GO);
+export const tomlLines = (src: string) => render(src, TOML);
+export const yamlLines = (src: string) => render(src, YAML);

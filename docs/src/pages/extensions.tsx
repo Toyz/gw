@@ -46,16 +46,25 @@ gwext.Before("deploy", func(c *gwext.Context) error {
     return c.Mod("api").Build()
 })`;
 
-const PROVIDE_SAMPLE = `// Prebuilt: stamp git metadata into your binary.
-gwext.Provide(gwext.GitStamp("example.com/app/version"))
-
-// Or compute your own env / -ldflags -X / build tags:
+const PROVIDE_SAMPLE = `// Compute env, -ldflags -X vars, and build tags at build time.
 gwext.Provide(func(c *gwext.Context) (gwext.BuildInfo, error) {
     return gwext.BuildInfo{
         Env:  map[string]string{"BUILD_ENV": "ci"},
         Tags: []string{"prod"},
     }, nil
 })`;
+
+const BUILTINS_SAMPLE = `// Version stamping: git locally, the CI runner in a pipeline
+// (reliable on the shallow / detached checkouts CI does).
+gwext.Provide(gwext.GitStamp("example.com/app/version"))
+gwext.Provide(gwext.CIStamp("example.com/app/version"))
+
+// Or expose metadata as env — GW_GIT_* / GW_CI_*
+gwext.Provide(gwext.GitEnv())
+gwext.Provide(gwext.CIEnv())
+
+// Raw structs for custom commands + hooks:
+ci := gwext.CI()   // Provider, Commit, Ref, Tag, RunID, Repo…`;
 
 const EACH_SAMPLE = `// Only the gateway gets the "edge" tag.
 gwext.ProvideEach(
@@ -359,8 +368,8 @@ export class PageExtensions extends LoomElement {
                 <code>gwext.Provide</code> computes <b>env</b>,{" "}
                 <b>-ldflags -X</b> vars, and <b>build tags</b> at run time — gw's
                 take on a Cargo build script's <code>rustc-env</code>/
-                <code>rustc-cfg</code>. Prebuilt <code>GitStamp</code>/
-                <code>GitEnv</code> ship in the SDK.
+                <code>rustc-cfg</code>. Ready-made ones (git + CI version
+                stamping) ship in the SDK — see <b>Built-ins</b> below.
               </p>
               <div class="note">
                 <b>Precedence.</b> Provider env layers between config and{" "}
@@ -394,6 +403,35 @@ export class PageExtensions extends LoomElement {
 
         <section>
           <div class="eyebrow">
+            <loom-icon name="zap" size={14} /> Built-ins
+          </div>
+          <div class="grid2">
+            <div class="doc">
+              <p>
+                Batteries the SDK ships so you don't hand-roll build metadata.{" "}
+                <code>GitStamp</code> stamps git info into a version package via{" "}
+                <code>-ldflags -X</code>; <code>GitEnv</code> exports it as{" "}
+                <code>GW_GIT_*</code>.
+              </p>
+              <p>
+                <code>CIStamp</code>/<code>CIEnv</code> do the same from the CI
+                runner's own env — <b>GitHub Actions</b> and <b>GitLab CI</b> —
+                which stays correct on the shallow, detached checkouts CI does,
+                where <code>git describe</code> often can't.{" "}
+                <code>gwext.Git(c.Root)</code> and <code>gwext.CI()</code> return
+                the raw structs for your own commands and hooks.
+              </p>
+              <div class="note">
+                Git/CI built-ins are workspace-global — pair them with{" "}
+                <code>Provide</code>, not <code>ProvideEach</code>.
+              </div>
+            </div>
+            {codeWin(".gw/build.go", BUILTINS_SAMPLE)}
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">
             <loom-icon name="layers" size={14} /> Override &amp; hide
           </div>
           <div class="grid2">
@@ -405,7 +443,7 @@ export class PageExtensions extends LoomElement {
                 <code>c.Builtin(name, args...)</code> falls through to the
                 original, making the verb a <b>superset</b>. It's surfaced, not
                 silent — <code>gw --help</code> and <code>gw ext list</code> flag
-                it <code>(overrides builtin)</code>; <code>gwext.Hide</code>
+                it <code>(overrides builtin)</code>; <code>gwext.Hide</code>{" "}
                 drops a builtin entirely.
               </p>
               <p>

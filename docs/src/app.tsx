@@ -28,6 +28,9 @@ function navItems(
     <loom-link to="/extensions" class={active("/extensions")}>
       Extensions
     </loom-link>,
+    <loom-link to="/config" class={active("/config")}>
+      Config
+    </loom-link>,
     <loom-link to="/ci" class={active("/ci")}>
       CI
     </loom-link>,
@@ -65,6 +68,9 @@ function mobileMenu(
       </loom-link>
       <loom-link to="/extensions" class={"m-link " + active("/extensions")}>
         Extensions
+      </loom-link>
+      <loom-link to="/config" class={"m-link " + active("/config")}>
+        Config
       </loom-link>
       <loom-link to="/ci" class={"m-link " + active("/ci")}>
         CI
