@@ -34,6 +34,9 @@ function navItems(
     <loom-link to="/ci" class={active("/ci")}>
       CI
     </loom-link>,
+    <loom-link to="/mcp" class={active("/mcp")}>
+      MCP
+    </loom-link>,
     version ? (
       <a class="ver" href={REPO + "/releases/latest"}>
         {version}
@@ -74,6 +77,9 @@ function mobileMenu(
       </loom-link>
       <loom-link to="/ci" class={"m-link " + active("/ci")}>
         CI
+      </loom-link>
+      <loom-link to="/mcp" class={"m-link " + active("/mcp")}>
+        MCP
       </loom-link>
       <div class="m-meta">
         <a class="m-chip" href={REPO}>

@@ -11,6 +11,7 @@ import "./pages/home";
 import "./pages/extensions";
 import "./pages/config";
 import "./pages/ci";
+import "./pages/mcp";
 
 const router = new LoomRouter({ mode: "hash" });
 app.use(router);
