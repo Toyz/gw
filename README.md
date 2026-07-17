@@ -30,6 +30,7 @@ go install github.com/toyz/gw@latest
 | `gw doctor` | One-shot health check: missing/stale `go.work`, use entries with no `go.mod`, modules missing from `go.work`, un-hoisted `replace` directives, and version/directive drift. Exits non-zero on any error (`--strict` also fails on warnings). |
 | `gw config init` | Scaffold a commented starter `gw.toml` in the workspace root (won't clobber an existing config). `gw config path` prints the config file gw loads. See [Config](#config-optional-gwtoml). |
 | `gw verify` | Check the **release contract** workspace mode hides: every require on another workspace module must resolve to a **real published tag** whose code still matches what's on disk. Inside the workspace such a require resolves to local code, so `go build` passes even when the version was never tagged — `verify` runs the checks an external consumer (or `GOWORK=off` release build) would hit. Also flags local-path `replace` leaks, and prints a release plan in dependency order. Exits non-zero on errors (`--strict` also on warnings); `--json`. |
+| `gw mcp` | Run gw as a **Model Context Protocol** stdio server so an AI agent can drive the workspace. See [MCP](#mcp-server). |
 
 `-C, --root <dir>` sets the workspace root (default: nearest ancestor with a
 `go.work`, else the current directory).
@@ -279,6 +280,33 @@ and the rest (`sync`/`lint`/`doctor`/`graph`/`list`/...).
 **Hook events:** `pre-`/`post-` for `sync`, `lint`, `run`, `build`, `test`, `vet`,
 `generate`, `tidy` (e.g. `post-sync`, `pre-test`). The compiled binary is cached under `.gw/bin/`
 (git-ignored) and rebuilt only when `.gw` sources change.
+
+## MCP server
+
+`gw mcp` runs gw as a [Model Context Protocol](https://modelcontextprotocol.io)
+stdio server, so an agent can inspect and drive a Go workspace directly. Register
+it with Claude Code:
+
+```
+claude mcp add gw -- gw mcp
+```
+
+Tools exposed:
+
+| Tool | What it returns |
+| --- | --- |
+| `gw_list` | modules, dirs, go versions, direct requires (JSON) |
+| `gw_doctor` | health issues + error/warning/info counts |
+| `gw_lint` | cross-module dependency + go/toolchain version drift |
+| `gw_graph` | the intra-workspace dependency DAG (nodes + edges) |
+| `gw_affected` | `{since}` → seeds + transitively impacted modules (selective CI) |
+| `gw_sync` | regenerate `go.work` (`{check}` reports drift without writing) |
+| `gw_test` | `go test` across every module + pass/fail summary |
+
+Read-only insight tools (`list`/`doctor`/`lint`/`graph`/`affected`) call gw's
+workspace engine directly and return structured JSON; action tools (`sync`,
+`test`) invoke gw so they inherit hooks and build providers. Every tool takes an
+optional `root` (defaults to the nearest `go.work`).
 
 ## License
 

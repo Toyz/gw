@@ -70,6 +70,7 @@ func newRootCmd() *cobra.Command {
 		newDoctorCmd(),
 		newConfigCmd(),
 		newExtCmd(),
+		newMcpCmd(),
 	)
 	for _, gc := range goCommands {
 		root.AddCommand(gc.command())
