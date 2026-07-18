@@ -78,7 +78,7 @@ func fireHook(cmd *cobra.Command, event string) {
 		env = nil
 	}
 	if cc, ok := cfg.Hooks[event]; ok && !cc.Empty() {
-		if err := execConfigCommand(p, root, mods, env, cc); err != nil {
+		if err := execConfigCommand(p, root, cfg, mods, env, cc, nil); err != nil {
 			p.warnf("hook %s: %v", event, err)
 		}
 	}

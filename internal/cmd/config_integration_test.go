@@ -53,7 +53,7 @@ func TestConfigCommandIntegration(t *testing.T) {
 		return newPrinter(c)
 	}
 	run := func(cc workspace.ConfigCommand) error {
-		return execConfigCommand(newP(), root, mods, nil, cc)
+		return execConfigCommand(newP(), root, workspace.Config{}, mods, nil, cc, nil)
 	}
 	exists := func(rel string) bool {
 		_, err := os.Stat(filepath.Join(root, rel))
@@ -84,14 +84,14 @@ func TestConfigCommandIntegration(t *testing.T) {
 		t.Error("api:generate should run go generate in the api module")
 	}
 
-	// 4. The fix: a misplaced bare go command fails with a module:verb hint.
+	// 4. The fix: a misplaced bare go command fails with a unit:verb hint.
 	err = run(workspace.ConfigCommand{Steps: []string{"go build ./..."}})
 	if err == nil {
 		t.Fatal("bare `go build ./...` from the root should fail")
 	}
 	var ce *cmdError
-	if !errors.As(err, &ce) || !strings.Contains(ce.hint, "<module>:<verb>") {
-		t.Errorf("misplaced go step should carry the module:verb hint, got: %v", err)
+	if !errors.As(err, &ce) || !strings.Contains(ce.hint, "<unit>:<verb>") {
+		t.Errorf("misplaced go step should carry the unit:verb hint, got: %v", err)
 	}
 }
 
@@ -138,7 +138,7 @@ func TestConfigModuleResolution(t *testing.T) {
 		var buf bytes.Buffer
 		c.SetOut(&buf)
 		c.SetErr(&buf)
-		return execConfigCommand(newPrinter(c), root, mods, nil, workspace.ConfigCommand{Steps: []string{step}})
+		return execConfigCommand(newPrinter(c), root, workspace.Config{}, mods, nil, workspace.ConfigCommand{Steps: []string{step}}, nil)
 	}
 	exists := func(rel string) bool { _, err := os.Stat(filepath.Join(root, rel)); return err == nil }
 	clean := func() {

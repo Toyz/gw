@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-func TestAffectedServices(t *testing.T) {
+func TestAffectedProjects(t *testing.T) {
 	root := "/ws"
-	services := map[string]Service{
+	projects := map[string]Project{
 		"api":     {Path: "svc/api"},
 		"sat":     {Path: "sat"}, // non-Go
 		"gateway": {},            // no Path -> defaults to name "gateway"
@@ -27,13 +27,13 @@ func TestAffectedServices(t *testing.T) {
 		{[]string{abs("satellite/x")}, ""},    // must not match "sat" by prefix
 	}
 	for _, tc := range cases {
-		got := strings.Join(AffectedServices(root, services, tc.changed), ",")
+		got := strings.Join(AffectedProjects(root, projects, tc.changed), ",")
 		if got != tc.want {
-			t.Errorf("AffectedServices(%v) = %q, want %q", tc.changed, got, tc.want)
+			t.Errorf("AffectedProjects(%v) = %q, want %q", tc.changed, got, tc.want)
 		}
 	}
 
-	if AffectedServices(root, nil, []string{abs("x")}) != nil {
-		t.Error("no services should yield nil")
+	if AffectedProjects(root, nil, []string{abs("x")}) != nil {
+		t.Error("no projects should yield nil")
 	}
 }

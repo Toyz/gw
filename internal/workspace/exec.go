@@ -34,18 +34,47 @@ type Job struct {
 	Module Module
 	Argv   []string
 	Env    []string // overrides appended to os.Environ(); nil inherits as-is
+	// Name/Dir let a job run for a non-module unit (a declared project). When set
+	// they take precedence over Module.Path/Module.Dir.
+	Name string
+	Dir  string
 }
 
-// ModuleResult is the outcome of running a command in one module.
+// label is the display name for a job (project name, else the module path).
+func (j Job) label() string {
+	if j.Name != "" {
+		return j.Name
+	}
+	return j.Module.Path
+}
+
+// workdir is where the job runs (explicit Dir, else the module's directory).
+func (j Job) workdir() string {
+	if j.Dir != "" {
+		return j.Dir
+	}
+	return j.Module.Dir
+}
+
+// ModuleResult is the outcome of running a command in one unit.
 type ModuleResult struct {
 	Module   Module
+	Name     string // unit label (project name; empty for a module — use Label())
 	ExitCode int
 	Err      error
 	Duration time.Duration
 }
 
-// Failed reports whether the command failed for this module.
+// Failed reports whether the command failed for this unit.
 func (r ModuleResult) Failed() bool { return r.ExitCode != 0 || r.Err != nil }
+
+// Label is the display name (project name, else the module path).
+func (r ModuleResult) Label() string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return r.Module.Path
+}
 
 var errSkipped = fmt.Errorf("skipped after earlier failure")
 
@@ -68,11 +97,11 @@ func RunAcross(ctx context.Context, jobs []Job, opts ExecOpts) []ModuleResult {
 
 	if !opts.Parallel {
 		for i, j := range jobs {
-			fmt.Fprintln(opts.Stdout, header(j.Module.Path))
+			fmt.Fprintln(opts.Stdout, header(j.label()))
 			results[i] = runOne(ctx, j, opts.Stdout, opts.Stderr)
 			if results[i].Failed() && !opts.ContinueOnError {
 				for k := i + 1; k < len(jobs); k++ {
-					results[k] = ModuleResult{Module: jobs[k].Module, ExitCode: -1, Err: errSkipped}
+					results[k] = ModuleResult{Module: jobs[k].Module, Name: jobs[k].Name, ExitCode: -1, Err: errSkipped}
 				}
 				break
 			}
@@ -99,7 +128,7 @@ func RunAcross(ctx context.Context, jobs []Job, opts ExecOpts) []ModuleResult {
 			var outBuf, errBuf syncBuffer
 			results[i] = runOne(ctx, j, &outBuf, &errBuf)
 			flushMu.Lock()
-			fmt.Fprintln(opts.Stdout, header(j.Module.Path))
+			fmt.Fprintln(opts.Stdout, header(j.label()))
 			_, _ = opts.Stdout.Write(outBuf.Bytes())
 			_, _ = opts.Stderr.Write(errBuf.Bytes())
 			flushMu.Unlock()
@@ -112,14 +141,14 @@ func RunAcross(ctx context.Context, jobs []Job, opts ExecOpts) []ModuleResult {
 func runOne(ctx context.Context, j Job, stdout, stderr io.Writer) ModuleResult {
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, j.Argv[0], j.Argv[1:]...)
-	cmd.Dir = j.Module.Dir
+	cmd.Dir = j.workdir()
 	if len(j.Env) > 0 {
 		cmd.Env = append(os.Environ(), j.Env...)
 	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	err := cmd.Run()
-	res := ModuleResult{Module: j.Module, Duration: time.Since(start)}
+	res := ModuleResult{Module: j.Module, Name: j.Name, Duration: time.Since(start)}
 	if err != nil {
 		res.Err = err
 		if ee, ok := err.(*exec.ExitError); ok {

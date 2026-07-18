@@ -101,18 +101,18 @@ func AffectedModules(g *Graph, mods []Module, changed []string) (seeds, impacted
 	return seeds, g.TransitiveDependents(seeds)
 }
 
-// AffectedServices maps changed files to the declared services that own them,
+// AffectedProjects maps changed files to the declared projects that own them,
 // by directory (longest-prefix wins, like OwningModule). root is the workspace
-// root that service paths are relative to; changed are absolute file paths.
-// Returns the affected service names, sorted. Services with no path default to
+// root that project paths are relative to; changed are absolute file paths.
+// Returns the affected project names, sorted. Projects with no path default to
 // their name as the directory.
-func AffectedServices(root string, services map[string]Service, changed []string) []string {
-	if len(services) == 0 {
+func AffectedProjects(root string, projects map[string]Project, changed []string) []string {
+	if len(projects) == 0 {
 		return nil
 	}
-	type svc struct{ name, dir string }
-	dirs := make([]svc, 0, len(services))
-	for name, s := range services {
+	type proj struct{ name, dir string }
+	dirs := make([]proj, 0, len(projects))
+	for name, s := range projects {
 		p := s.Path
 		if p == "" {
 			p = name
@@ -120,7 +120,7 @@ func AffectedServices(root string, services map[string]Service, changed []string
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(root, p)
 		}
-		dirs = append(dirs, svc{name, filepath.Clean(p)})
+		dirs = append(dirs, proj{name, filepath.Clean(p)})
 	}
 
 	hit := map[string]bool{}

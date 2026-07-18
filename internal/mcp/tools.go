@@ -247,10 +247,10 @@ func toolAffected() Tool {
 			}
 			g := workspace.BuildGraph(mods)
 			seeds, impacted := workspace.AffectedModules(g, mods, changed)
-			services := workspace.AffectedServices(root, cfg.Services, changed)
+			projects := workspace.AffectedProjects(root, cfg.Projects, changed)
 			sort.Strings(seeds)
 			sort.Strings(impacted)
-			return toJSON(map[string]any{"since": a.Since, "seeds": seeds, "impacted": impacted, "services": services})
+			return toJSON(map[string]any{"since": a.Since, "seeds": seeds, "impacted": impacted, "projects": projects})
 		},
 	}
 }

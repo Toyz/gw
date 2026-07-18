@@ -14,24 +14,24 @@ import (
 	"github.com/toyz/gw/internal/workspace"
 )
 
-// printModuleSummary renders the per-module ok/fail + duration lines and a
-// tally, through the shared status vocabulary (used by run/build/test/etc).
-func printModuleSummary(p *printer, results []workspace.ModuleResult) {
+// printUnitSummary renders the per-unit ok/fail + duration lines and a tally,
+// through the shared status vocabulary (used by run/build/test/etc).
+func printUnitSummary(p *printer, results []workspace.ModuleResult) {
 	p.println()
 	failed := 0
 	for _, r := range results {
 		dur := r.Duration.Round(time.Millisecond).String()
 		if r.Failed() {
 			failed++
-			p.fail("%-48s %s", r.Module.Path, dur)
+			p.fail("%-48s %s", r.Label(), dur)
 		} else {
-			p.ok("%-48s %s", r.Module.Path, dur)
+			p.ok("%-48s %s", r.Label(), dur)
 		}
 	}
 	if failed > 0 {
-		p.warn("%d module(s), %d failed", len(results), failed)
+		p.warn("%d unit(s), %d failed", len(results), failed)
 	} else {
-		p.ok("%d module(s), 0 failed", len(results))
+		p.ok("%d unit(s), 0 failed", len(results))
 	}
 }
 
@@ -56,18 +56,55 @@ type goInject struct {
 	ldflags bool // append -ldflags "-X k=v" from provider vars (build/test)
 }
 
-// runArgvAcross runs prefix+injected-flags+userArgs in every module, printing a
-// summary and exiting with the worst module exit code. inj controls whether
-// extension build-provider tags/ldflags are woven in between prefix and userArgs.
-func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, inj goInject) error {
+// unitEnv builds a unit's env: base (config + global provider) + this module's
+// per-module provider env (modules only) + CLI --env.
+func unitEnv(base, cli []string, res gwext.ProvideResult, u workspace.Unit) []string {
+	env := append([]string{}, base...)
+	if u.IsModule {
+		env = append(env, sortedEnv(res.Each[u.Name].Env)...)
+	}
+	return append(env, cli...)
+}
+
+// goArgv builds a Go unit's argv for a verb: base + build-provider tag/ldflag
+// injection + (userArgs, else the verb's default package args).
+func goArgv(gc goCmd, res gwext.ProvideResult, u workspace.Unit, userArgs []string) []string {
+	argv := append([]string{}, gc.base...)
+	each := res.Each[u.Name]
+	if gc.inject.tags {
+		if tags := dedupStrings(append(append([]string{}, res.Tags...), each.Tags...)); len(tags) > 0 {
+			argv = append(argv, "-tags="+strings.Join(tags, ","))
+		}
+	}
+	if gc.inject.ldflags {
+		if vars := mergeVars(res.Vars, each.Vars); len(vars) > 0 {
+			argv = append(argv, "-ldflags="+ldflagsX(vars))
+		}
+	}
+	if len(userArgs) > 0 {
+		return append(argv, userArgs...)
+	}
+	return append(argv, gc.defArgs...)
+}
+
+// runVerbAcross dispatches a verb (build/test/vet/generate/tidy) across every
+// unit — Go modules run the native go argv (with provider injection + userArgs);
+// other units run their toolchain command (via TaskCommand), which is a shell
+// command for user-defined toolchains and overrides, or cargo argv for rust.
+// userArgs (extra go flags/packages) apply to Go units only.
+func runVerbAcross(cmd *cobra.Command, f execFlags, gc goCmd, userArgs []string) error {
 	root, cfg, mods, err := loadWorkspace()
 	if err != nil {
 		return err
 	}
-	if len(mods) == 0 {
-		return fmt.Errorf("no modules found")
+	units, overlaps := workspace.Units(root, mods, cfg.Projects)
+	p := newPrinter(cmd)
+	for _, o := range overlaps {
+		p.warnf("project %q overlaps a Go module directory; the module wins", o)
 	}
-
+	if len(units) == 0 {
+		return failf("no units found")
+	}
 	base, res, err := workspaceEnv(root, cfg, mods)
 	if err != nil {
 		return err
@@ -76,36 +113,44 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 	if err != nil {
 		return err
 	}
-
-	// Build a per-module job. Env precedence: config < global provider <
-	// per-module provider < CLI --env. Compiling commands weave the merged
-	// tags/vars (global + this module's) into the argv.
-	jobs := make([]workspace.Job, len(mods))
-	for i, m := range mods {
-		each := res.Each[m.Path] // zero BuildInfo when a module has no override
-
-		env := append([]string{}, base...)
-		env = append(env, sortedEnv(each.Env)...)
-		env = append(env, cli...)
-
-		argv := append([]string{}, prefix...)
-		if inj.tags {
-			tags := dedupStrings(append(append([]string{}, res.Tags...), each.Tags...))
-			if len(tags) > 0 {
-				argv = append(argv, "-tags="+strings.Join(tags, ","))
-			}
-		}
-		if inj.ldflags {
-			if vars := mergeVars(res.Vars, each.Vars); len(vars) > 0 {
-				argv = append(argv, "-ldflags="+ldflagsX(vars))
-			}
-		}
-		argv = append(argv, userArgs...)
-
-		jobs[i] = workspace.Job{Module: m, Argv: argv, Env: env}
+	modByName := make(map[string]workspace.Module, len(mods))
+	for _, m := range mods {
+		modByName[m.Path] = m
 	}
 
-	p := newPrinter(cmd)
+	jobs := make([]workspace.Job, 0, len(units))
+	for _, u := range units {
+		env := unitEnv(base, cli, res, u)
+		// Native Go path: a Go unit with no [toolchains.go] override keeps full go
+		// behavior (provider injection, userArgs, default packages).
+		if u.Toolchain == "go" && cfg.Toolchains["go"][gc.verb] == "" {
+			if gc.noArgs && len(userArgs) > 0 {
+				return failf("%q takes no arguments, got %v", gc.verb, userArgs)
+			}
+			jobs = append(jobs, workspace.Job{
+				Module: modByName[u.Name], Name: u.Name, Dir: u.Dir,
+				Argv: goArgv(gc, res, u, userArgs), Env: env,
+			})
+			continue
+		}
+		argv, shell, terr := workspace.TaskCommand(cfg, u, gc.verb)
+		if terr != nil {
+			return failf("%s: %v", u.Name, terr)
+		}
+		j := workspace.Job{Name: u.Name, Dir: u.Dir, Env: env}
+		if shell != "" {
+			j.Argv = []string{"sh", "-c", shell}
+		} else {
+			j.Argv = argv
+		}
+		jobs = append(jobs, j)
+	}
+	return dispatchJobs(cmd, p, f, jobs)
+}
+
+// dispatchJobs runs jobs across units, prints the summary, and exits with the
+// worst exit code. Shared by verb dispatch and `gw run`.
+func dispatchJobs(cmd *cobra.Command, p *printer, f execFlags, jobs []workspace.Job) error {
 	results := workspace.RunAcross(context.Background(), jobs, workspace.ExecOpts{
 		Parallel:        f.parallel,
 		ContinueOnError: f.continueOnError,
@@ -115,11 +160,37 @@ func runArgvAcross(cmd *cobra.Command, f execFlags, prefix, userArgs []string, i
 			return p.s.cyan("==") + " " + p.s.bold(m) + " " + p.s.cyan("==")
 		},
 	})
-	printModuleSummary(p, results)
+	printUnitSummary(p, results)
 	if code := workspace.WorstExit(results); code != 0 {
 		os.Exit(code)
 	}
 	return nil
+}
+
+// runLiteralAcross runs a literal command (argv) in every unit's directory —
+// backs `gw run -- <cmd>`.
+func runLiteralAcross(cmd *cobra.Command, f execFlags, argv []string) error {
+	root, cfg, mods, err := loadWorkspace()
+	if err != nil {
+		return err
+	}
+	units, _ := workspace.Units(root, mods, cfg.Projects)
+	if len(units) == 0 {
+		return failf("no units found")
+	}
+	base, res, err := workspaceEnv(root, cfg, mods)
+	if err != nil {
+		return err
+	}
+	cli, err := workspace.ResolveCLIEnv(root, f.envFiles, f.envVars)
+	if err != nil {
+		return err
+	}
+	jobs := make([]workspace.Job, 0, len(units))
+	for _, u := range units {
+		jobs = append(jobs, workspace.Job{Name: u.Name, Dir: u.Dir, Argv: argv, Env: unitEnv(base, cli, res, u)})
+	}
+	return dispatchJobs(cmd, newPrinter(cmd), f, jobs)
 }
 
 // workspaceEnv is the base env applied to every command gw spawns: config env
@@ -204,11 +275,11 @@ func newRunCmd() *cobra.Command {
 	var f execFlags
 	cmd := &cobra.Command{
 		Use:   "run -- <command> [args...]",
-		Short: "Run a command in every module's directory",
-		Long:  "run executes an arbitrary command inside each module. Put the command after --.",
+		Short: "Run a command in every unit's directory",
+		Long:  "run executes an arbitrary command inside each unit (Go module or project). Put the command after --.",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runArgvAcross(cmd, f, args, nil, goInject{})
+			return runLiteralAcross(cmd, f, args)
 		},
 	}
 	f.bind(cmd)
@@ -218,12 +289,13 @@ func newRunCmd() *cobra.Command {
 // goCmd is a `go` subcommand fanned out across every module. The builtins
 // build/test/vet/generate/tidy are all instances of this one shape.
 type goCmd struct {
+	verb    string   // the polyglot verb: build/test/vet/generate/tidy
 	use     string   // cobra Use string, e.g. "build [packages/flags...]"
 	short   string   // one-line help
-	base    []string // argv prefix, e.g. {"go", "build"}
+	base    []string // Go argv prefix, e.g. {"go", "build"}
 	defArgs []string // appended when the user passes no args (nil = pass none)
 	noArgs  bool     // reject positional args (tidy)
-	inject  goInject // which build-provider flags this command accepts
+	inject  goInject // which build-provider flags this command accepts (go units)
 }
 
 func (gc goCmd) command() *cobra.Command {
@@ -243,10 +315,7 @@ func (gc goCmd) command() *cobra.Command {
 			if gc.noArgs && len(rest) > 0 {
 				return fmt.Errorf("%q takes no arguments, got %v", cmd.Name(), rest)
 			}
-			if len(rest) == 0 {
-				rest = gc.defArgs
-			}
-			return runArgvAcross(cmd, f, gc.base, rest, gc.inject)
+			return runVerbAcross(cmd, f, gc, rest)
 		},
 	}
 	help.bind(cmd)
@@ -314,9 +383,9 @@ func wantsHelp(args []string) bool {
 // each gets -p/--continue-on-error/--env* and pre-/post-<name> hooks for free.
 // inject marks which commands weave in an extension's build-provider tags/vars.
 var goCommands = []goCmd{
-	{use: "build [packages/flags...]", short: "Run `go build` in every module (default ./...)", base: []string{"go", "build"}, defArgs: []string{"./..."}, inject: goInject{tags: true, ldflags: true}},
-	{use: "test [packages/flags...]", short: "Run `go test` in every module (default ./...)", base: []string{"go", "test"}, defArgs: []string{"./..."}, inject: goInject{tags: true, ldflags: true}},
-	{use: "vet [packages/flags...]", short: "Run `go vet` in every module (default ./...)", base: []string{"go", "vet"}, defArgs: []string{"./..."}, inject: goInject{tags: true}},
-	{use: "generate [packages/flags...]", short: "Run `go generate` in every module (default ./...)", base: []string{"go", "generate"}, defArgs: []string{"./..."}},
-	{use: "tidy", short: "Run `go mod tidy` in every module", base: []string{"go", "mod", "tidy"}, noArgs: true},
+	{verb: "build", use: "build [packages/flags...]", short: "Build every unit (go build ./... / cargo build / ...)", base: []string{"go", "build"}, defArgs: []string{"./..."}, inject: goInject{tags: true, ldflags: true}},
+	{verb: "test", use: "test [packages/flags...]", short: "Test every unit (go test ./... / cargo test / ...)", base: []string{"go", "test"}, defArgs: []string{"./..."}, inject: goInject{tags: true, ldflags: true}},
+	{verb: "vet", use: "vet [packages/flags...]", short: "Lint every unit (go vet ./... / cargo clippy / ...)", base: []string{"go", "vet"}, defArgs: []string{"./..."}, inject: goInject{tags: true}},
+	{verb: "generate", use: "generate [packages/flags...]", short: "Run `go generate` in every Go module (default ./...)", base: []string{"go", "generate"}, defArgs: []string{"./..."}},
+	{verb: "tidy", use: "tidy", short: "Run `go mod tidy` in every Go module", base: []string{"go", "mod", "tidy"}, noArgs: true},
 }

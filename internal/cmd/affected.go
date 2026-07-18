@@ -13,7 +13,7 @@ func newAffectedCmd() *cobra.Command {
 		seedsOnly    bool
 		asDirs       bool
 		asJSON       bool
-		servicesOnly bool
+		projectsOnly bool
 	)
 	cmd := &cobra.Command{
 		Use:   "affected --since <ref>",
@@ -21,8 +21,8 @@ func newAffectedCmd() *cobra.Command {
 		Long: "affected diffs the working tree against a git ref, maps changed files to their\n" +
 			"owning modules, and walks the dependency graph to every module that must be\n" +
 			"rebuilt/retested. Feed it to selective CI, e.g. `gw affected --since main`.\n" +
-			"With --services it instead lists the [services.<name>] a diff touches (by\n" +
-			"directory) — for change-based redeploy across languages in a polyglot repo.",
+			"With --projects it instead lists the [projects.<name>] a diff touches (by\n" +
+			"directory) — for change-based rebuilds across languages in a polyglot repo.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if since == "" {
@@ -44,18 +44,18 @@ func newAffectedCmd() *cobra.Command {
 
 			g := workspace.BuildGraph(mods)
 			seeds, impacted := workspace.AffectedModules(g, mods, changed)
-			services := workspace.AffectedServices(root, cfg.Services, changed)
+			projects := workspace.AffectedProjects(root, cfg.Projects, changed)
 
 			p := newPrinter(cmd)
 
 			if asJSON {
-				return p.json(map[string]any{"seeds": seeds, "impacted": impacted, "services": services})
+				return p.json(map[string]any{"seeds": seeds, "impacted": impacted, "projects": projects})
 			}
 
-			// --services switches text output to the affected service names, so it
-			// pipes straight into a deploy step (independent of the Go module set).
-			if servicesOnly {
-				for _, s := range services {
+			// --projects switches text output to the affected project names, so it
+			// pipes straight into a build/deploy step (independent of the Go graph).
+			if projectsOnly {
+				for _, s := range projects {
 					p.println(s)
 				}
 				return nil
@@ -78,7 +78,7 @@ func newAffectedCmd() *cobra.Command {
 	cmd.Flags().StringVar(&since, "since", "", "git ref to diff against (e.g. main, HEAD~1)")
 	cmd.Flags().BoolVar(&seedsOnly, "seeds", false, "only directly-changed modules (skip dependents)")
 	cmd.Flags().BoolVar(&asDirs, "dir", false, "print module use-paths instead of module paths")
-	cmd.Flags().BoolVar(&servicesOnly, "services", false, "list affected [services.<name>] instead of modules")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON {seeds, impacted, services}")
+	cmd.Flags().BoolVar(&projectsOnly, "projects", false, "list affected [projects.<name>] instead of modules")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON {seeds, impacted, projects}")
 	return cmd
 }

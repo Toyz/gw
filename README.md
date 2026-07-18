@@ -28,7 +28,7 @@ go install github.com/toyz/gw@latest
 | `gw list` | List modules; `-v` adds go version + external requires; `--json`. |
 | `gw add <path>` / `gw remove <path>` | Add/remove a single module's `use` directive. |
 | `gw graph` | Print the intra-workspace dependency DAG (edge A->B = A requires B). Text, `--dot` (Graphviz), or `--json`. Edges come from direct/indirect requires and local `replace` targets. |
-| `gw affected --since <ref>` | Diff the working tree against a git ref, map changed files to owning modules, and walk the DAG to every impacted module. `--seeds` (only directly-changed), `--dir`, `--json`. `--services` instead lists the `[services.<name>]` a diff touches (by directory) — change-based redeploy across languages, even non-Go. Feed selective CI: `gw affected --since main`. |
+| `gw affected --since <ref>` | Diff the working tree against a git ref, map changed files to owning modules, and walk the DAG to every impacted module. `--seeds` (only directly-changed), `--dir`, `--json`. `--projects` instead lists the `[projects.<name>]` a diff touches (by directory) — change-based rebuilds across languages, even non-Go. Feed selective CI: `gw affected --since main`. |
 | `gw doctor` | One-shot health check: missing/stale `go.work`, use entries with no `go.mod`, modules missing from `go.work`, un-hoisted `replace` directives, and version/directive drift. Exits non-zero on any error (`--strict` also fails on warnings). |
 | `gw config init` | Scaffold a commented starter `gw.toml` in the workspace root (won't clobber an existing config). `gw config path` prints the config file gw loads. See [Config](#config-optional-gwtoml). |
 | `gw verify` | Check the **release contract** workspace mode hides: every require on another workspace module must resolve to a **real published tag** whose code still matches what's on disk. Inside the workspace such a require resolves to local code, so `go build` passes even when the version was never tagged — `verify` runs the checks an external consumer (or `GOWORK=off` release build) would hit. Also flags local-path `replace` leaks, and prints a release plan in dependency order. Exits non-zero on errors (`--strict` also on warnings); `--json`. |
@@ -85,45 +85,69 @@ gw, no compiled extension needed:
 [commands.boot]                 # adds `gw boot`
 desc = "build services, then codegen"
 steps = [
-  "worker:build",               # <module>:<verb> → go build ./... in the module
+  "worker:build",               # <unit>:<verb> → runs that unit's toolchain verb
   "api:build",
   "sqlc generate",              # any other string → shell command
 ]
 dir = "services"                # working dir for shell steps
 
+[commands.deploy]               # takes an argument: `gw deploy <service>`
+desc = "deploy one service"
+args = ["service"]
+steps = [
+  "${service}:build",           # arg picks the unit dynamically
+  "helm upgrade $service ./charts/$1",   # $service (env) and $1 (positional)
+]
+
 [hooks.pre-build]               # runs before `gw build`
 steps = ["sqlc generate"]
 ```
 
-Each step is either `<module>:<verb>` (verb ∈
-`build test vet generate tidy run`, run as that go command in the module's
-directory) or a shell command (run in `dir`, else the root). Hooks are keyed by
-event — `pre-`/`post-<command>` — the same events the [gwext SDK](#extensions-gwbuildgo)
+Each step is either `<unit>:<verb>` (verb ∈
+`build test vet generate tidy run`, run via that unit's toolchain in its
+directory) or a shell command (run in `dir`, else the root). A command may declare
+`args = [...]`; each becomes `<cmd> <name...>`, bound in steps as `$name` (env),
+`$1`/`$@` (positional), and `${name}` in a unit ref. Hooks are keyed by event —
+`pre-`/`post-<command>` — the same events the [gwext SDK](#extensions-gwbuildgo)
 uses. A compiled extension wins any name/event collision; config fills the rest.
 For real logic (loops, conditionals), use a `.gw/build.go` extension.
 
-### Services (polyglot `affected`)
+### Projects (polyglot task dispatch)
 
-A Go module is a *build* unit; a **service** is a *deployable* unit — and it need
-not be Go. Declare deployable dirs so `gw affected --since <ref> --services` reports
-which ones a diff touches (by directory), even non-Go ones the Go workspace can't
-see. Change-based redeploy across languages:
+gw is a **polyglot monorepo task runner**. A Go module is a build unit gw
+auto-discovers; a `[projects.<name>]` is a unit in another language. gw's verbs
+(`build`/`test`/`vet`/`generate`/`tidy`/`run`) dispatch to each unit's toolchain —
+`go test ./...` for a module, `cargo test` for Rust, whatever you declare for the
+rest. **`go` and `rust` are first-party** (built in); any other language is a few
+lines of `[toolchains.<name>]` — no recompile.
 
 ```toml
-[services.api]
-path = "svc/api"                # dir (relative to root); defaults to the name
-
-[services.sat]                  # a Rust service — no go.mod, still tracked
+[projects.sat]
 path = "sat"
-image = "spm/sat"               # any extra keys are YOURS — gw ignores them,
-port  = 8080                    # your deploy tooling reads them if it wants
+toolchain = "rust"              # first-party: cargo build/test/clippy/run
+
+[projects.web]
+path = "web"
+toolchain = "npm"               # defined below
+
+[toolchains.npm]                # add a language: verb -> shell command
+build = "npm run build"
+test  = "npm test"
+
+# override a first-party verb too:
+[toolchains.rust]
+test = "cargo nextest run"
 ```
 
-**gw reads only `path`.** It takes no opinion on how a service builds or runs —
-any other keys you add are ignored by gw and free for your own deploy tooling.
-`gw affected --since main --services` prints the affected service names, one per
-line — pipe it straight into your deploy. In `--json`, affected services appear
-under `services` alongside `seeds`/`impacted`.
+Per-project overrides live under `[projects.<name>.tasks]` (e.g. `test = "..."`).
+`gw test` runs every unit's test; `gw affected --since main --projects` lists the
+projects a diff touches (by directory), even non-Go ones — pipe it into selective
+CI. In `--json`, affected projects appear under `projects` alongside
+`seeds`/`impacted`.
+
+> Note: overriding `[toolchains.go]` switches that verb to a shell command, which
+> forfeits gw's automatic `-tags`/`-ldflags` build-provider injection (add flags
+> yourself).
 
 ## CI (GitHub Action)
 

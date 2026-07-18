@@ -54,10 +54,16 @@ const FIELDS: { key: string; type: string; desc: string; tip: string }[] = [
     tip: '[hooks.pre-build]   steps = ["sqlc generate"]',
   },
   {
-    key: "services",
+    key: "projects",
     type: "map",
-    desc: "Deployable dirs — even non-Go. gw affected --services reports which a diff touches. gw reads only path.",
-    tip: '[services.sat]   path = "sat"',
+    desc: "Non-Go units. gw's verbs dispatch to each toolchain; gw affected --projects reports which a diff touches.",
+    tip: '[projects.sat]   path = "sat"   toolchain = "rust"',
+  },
+  {
+    key: "toolchains",
+    type: "map",
+    desc: "Add a language: verb -> shell command. Built-in go/rust are overridable. [toolchains.npm] test = \"npm test\".",
+    tip: '[toolchains.npm]   test = "npm test"',
   },
 ];
 
@@ -118,16 +124,21 @@ steps = ["sqlc generate"]
 [hooks.post-sync]
 steps = ["proto:generate"]`;
 
-const SERVICES_SAMPLE = `# deployable units — even non-Go
-[services.api]
-path = "svc/api"              # dir; defaults to the name
-
-[services.sat]               # a Rust bird, no go.mod
+const SERVICES_SAMPLE = `# polyglot units — go + rust are first-party
+[projects.sat]
 path = "sat"
-image = "spm/sat"            # extra keys are YOURS — gw ignores them
-port  = 8080                 # (your deploy tooling reads them)
+toolchain = "rust"           # cargo build / test / clippy / run
 
-# gw affected --since main --services  ->  sat`;
+[projects.web]
+path = "web"
+toolchain = "npm"            # defined below
+
+[toolchains.npm]             # add a language: verb -> shell command
+build = "npm run build"
+test  = "npm test"
+
+# gw test  ->  go test ./... + cargo test + npm test
+# gw affected --since main --projects  ->  sat`;
 
 const cfgStyles = css`
   .hero {
@@ -420,30 +431,29 @@ export class PageConfig extends LoomElement {
 
         <section>
           <div class="eyebrow">
-            <loom-icon name="package" size={14} /> Services (polyglot affected)
+            <loom-icon name="package" size={14} /> Projects (polyglot task runner)
           </div>
           <div class="grid2">
             <div class="doc">
               <p>
-                A Go module is a <b>build</b> unit; a{" "}
-                <code>[services.&lt;name&gt;]</code> is a <b>deployable</b> unit —
-                and it need not be Go. Declare deployable dirs and{" "}
-                <code>gw affected --since &lt;ref&gt; --services</code> reports
-                which ones a diff touches (by directory), even a{" "}
-                <b>Rust service the Go workspace can't see</b>.
+                gw is a <b>polyglot monorepo task runner</b>. A Go module is a
+                unit gw auto-discovers; a <code>[projects.&lt;name&gt;]</code> is a
+                unit in another language. <code>gw build/test/vet/...</code>{" "}
+                dispatch to each unit's toolchain — <code>go test ./...</code>,{" "}
+                <code>cargo test</code>, whatever you declare.
               </p>
               <p>
-                gw reads <b>only <code>path</code></b> (defaults to the name) and
-                takes no opinion on how a service builds or runs — any other keys
-                you add are <b>ignored by gw</b> and free for your own deploy
-                tooling. In <code>--json</code>, affected services appear under{" "}
-                <code>services</code> alongside <code>seeds</code>/
-                <code>impacted</code>.
+                <b>go and rust are first-party</b>; any other language is a few
+                lines of <code>[toolchains.&lt;name&gt;]</code> (verb → shell
+                command) — no recompile. Those entries can also <b>override</b> a
+                first-party verb (<code>[toolchains.rust] test = "cargo nextest
+                run"</code>). Per-project overrides live under{" "}
+                <code>[projects.&lt;name&gt;.tasks]</code>.
               </p>
               <div class="note">
-                Change-based redeploy across languages: pipe{" "}
-                <code>gw affected --since main --services</code> straight into
-                your deploy — one service name per line.
+                <code>gw affected --since main --projects</code> lists the projects
+                a diff touches (by directory), even non-Go ones — one name per
+                line, straight into selective CI.
               </div>
             </div>
             <gw-code title="gw.toml" lang="toml" src={SERVICES_SAMPLE} />

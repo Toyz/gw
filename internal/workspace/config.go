@@ -44,24 +44,26 @@ type Config struct {
 	// Hooks declares lifecycle hooks natively, keyed by event: [hooks.<event>]
 	// (e.g. [hooks.pre-build]). Same shape as Commands.
 	Hooks map[string]ConfigCommand `toml:"hooks" yaml:"hooks"`
-	// Services declares deployable units in the repo, keyed by service name:
-	// [services.<name>]. Unlike a Go module (a build unit), a service is a
-	// runnable unit — and it need not be Go at all (e.g. a Rust binary). gw's Go
-	// features (workspace/lint) ignore services; `gw affected` maps a diff to the
-	// services it touches (by directory), so a polyglot monorepo gets
-	// change-based redeploy across languages.
-	Services map[string]Service `toml:"services" yaml:"services"`
+	// Projects declares non-Go units in the repo, keyed by name: [projects.<name>].
+	// A Go module is a build unit gw auto-discovers; a project is a unit in another
+	// language (Rust, Python, ...) gw can't infer. gw's verbs (build/test/vet/...)
+	// dispatch to each unit's toolchain, and `gw affected --projects` maps a diff to
+	// the projects it touches (by directory). Go modules are NOT listed here.
+	Projects map[string]Project `toml:"projects" yaml:"projects"`
+	// Toolchains defines how a toolchain runs each verb: name -> verb -> shell
+	// command (run via `sh -c` in the unit's directory). Built-in `go` and `rust`
+	// are first-party; entries here add new languages OR override the built-ins
+	// (e.g. [toolchains.rust] test = "cargo nextest run").
+	Toolchains map[string]map[string]string `toml:"toolchains" yaml:"toolchains"`
 }
 
-// Service is a deployable unit declared in gw.toml/gw.yaml under
-// [services.<name>]. gw core reads only Path (for `gw affected`); it takes no
-// opinion on how the service is built or run. Any other keys under the table
-// (image, port, whatever your deploy tooling wants) are ignored by gw — they are
-// yours to interpret.
-type Service struct {
-	// Path is the service's directory, relative to the workspace root (defaults
-	// to the service name). Ownership for `gw affected` is by this directory.
-	Path string `toml:"path" yaml:"path"`
+// Project is a non-Go unit declared under [projects.<name>]. Path is its
+// directory (defaults to the name); Toolchain selects how verbs run (a built-in
+// `go`/`rust` or a [toolchains.<name>] entry); Tasks overrides individual verbs.
+type Project struct {
+	Path      string            `toml:"path" yaml:"path"`
+	Toolchain string            `toml:"toolchain" yaml:"toolchain"`
+	Tasks     map[string]string `toml:"tasks" yaml:"tasks"` // verb -> shell command override
 }
 
 // ConfigCommand is a command or hook declared in gw.toml/gw.yaml: an ordered
@@ -77,6 +79,10 @@ type ConfigCommand struct {
 	// Dir sets the working directory for shell steps: a module (by path or name),
 	// else a path relative to the root. Module:verb steps ignore it.
 	Dir string `toml:"dir" yaml:"dir"`
+	// Args names the positional CLI args a command takes (commands only, not hooks):
+	// args = ["service"] makes `gw <cmd> <service>` bind $service (and $1) in steps.
+	// Empty means the command takes arbitrary positional args ($1, $2, $@).
+	Args []string `toml:"args" yaml:"args"`
 }
 
 // Empty reports whether the command declares no work (nothing to run).
