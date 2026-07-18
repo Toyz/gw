@@ -86,6 +86,7 @@ export const COMMAND_GROUPS: CommandGroup[] = [
       { name: "gw list", desc: "List modules; -v for versions, --json for tooling." },
       { name: "gw graph", desc: "The dependency DAG — text, --dot (Graphviz), or --json." },
       { name: "gw affected --since <ref>", desc: "Diff → owning modules → everything impacted." },
+      { name: "gw doc <unit>", desc: "Show a unit's docs — go doc for a module (by short name/symbol), or the toolchain's doc task for a project." },
     ],
   },
   {

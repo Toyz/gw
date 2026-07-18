@@ -77,7 +77,12 @@ func TestProjectsIntegration(t *testing.T) {
 		t.Skip("git not available")
 	}
 	gw := buildGW(t)
-	root := t.TempDir()
+	// Resolve symlinks so expected cwds match gw's resolved root (t.TempDir on
+	// macOS lives under /var -> /private/var; gw resolves the root to match git).
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	shims := filepath.Join(root, ".shims")
 	if err := os.MkdirAll(shims, 0o755); err != nil {

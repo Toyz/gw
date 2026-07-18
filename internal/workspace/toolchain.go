@@ -18,6 +18,7 @@ var rustVerbArgv = map[string][]string{
 	"test":  {"cargo", "test"},
 	"vet":   {"cargo", "clippy"},
 	"run":   {"cargo", "run"},
+	"doc":   {"cargo", "doc"}, // `gw doc <rust-project>` builds the crate's docs
 	// generate/tidy have no cargo analog — resolve to an error unless overridden.
 }
 

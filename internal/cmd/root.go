@@ -68,6 +68,7 @@ func newRootCmd() *cobra.Command {
 		newAffectedCmd(),
 		newVerifyCmd(),
 		newDoctorCmd(),
+		newDocCmd(),
 		newConfigCmd(),
 		newExtCmd(),
 		newMcpCmd(),
@@ -145,16 +146,29 @@ func resolveRoot() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return abs, nil
+		return realPath(abs), nil
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 	if root, ok := workspace.FindRoot(cwd); ok {
-		return root, nil
+		return realPath(root), nil
 	}
-	return cwd, nil
+	return realPath(cwd), nil
+}
+
+// realPath resolves symlinks in a workspace root so it shares a base with git's
+// toplevel (`git rev-parse --show-toplevel` is symlink-resolved). Without it,
+// `gw affected` file matching fails whenever the root is under a symlink — macOS
+// /tmp, every t.TempDir(), a symlinked checkout — because changed-file paths hang
+// off the resolved gitRoot while module/project dirs hang off the raw root. Falls
+// back to p when it can't be resolved (e.g. the dir doesn't exist yet).
+func realPath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
 }
 
 // gitRootFor resolves the repository top level for the workspace root, wrapping
@@ -200,6 +214,7 @@ func loadWorkspaceAt(root string) (_ string, cfg workspace.Config, mods []worksp
 		} else {
 			root = filepath.Join(root, cfg.Root)
 		}
+		root = realPath(root) // a [root] override may reintroduce a symlink
 	}
 	mods, err = workspace.Discover(root, cfg)
 	if err != nil {
