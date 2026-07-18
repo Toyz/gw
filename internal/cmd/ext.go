@@ -110,35 +110,44 @@ func newExtInitCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			dir := ext.Dir(root)
 			if ext.Exists(root) {
 				return failf("%s already exists", filepath.Join(".gw", "build.go")).
 					withHint("edit it, or remove .gw to re-scaffold")
 			}
-			if err := os.MkdirAll(dir, 0o755); err != nil {
+			if err := scaffoldExtInto(cmd, p, root); err != nil {
 				return err
-			}
-			goVer := workspace.UserGoVersion()
-			if err := os.WriteFile(filepath.Join(dir, "go.mod"),
-				fmt.Appendf(nil, "module gwext.local\n\ngo %s\n", goVer), 0o644); err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(dir, "build.go"), []byte(scaffoldBuildGo), 0o644); err != nil {
-				return err
-			}
-			// Resolve the gwext dependency.
-			get := exec.Command("go", "get", "github.com/toyz/gw@latest")
-			get.Dir = dir
-			get.Env = append(os.Environ(), "GOWORK=off")
-			get.Stdout, get.Stderr = cmd.OutOrStdout(), cmd.ErrOrStderr()
-			if err := get.Run(); err != nil {
-				p.warnf("note: `go get github.com/toyz/gw@latest` failed; run it in .gw manually")
 			}
 			p.ok("scaffolded %s", filepath.Join(".gw", "build.go"))
 			p.info("edit it, then run `gw <command>` or `gw ext list`")
 			return nil
 		},
 	}
+}
+
+// scaffoldExtInto writes .gw/go.mod + .gw/build.go and resolves the gwext
+// dependency. Callers check ext.Exists first (ext init errors; init --all skips).
+func scaffoldExtInto(cmd *cobra.Command, p *printer, root string) error {
+	dir := ext.Dir(root)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	goVer := workspace.UserGoVersion()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"),
+		fmt.Appendf(nil, "module gwext.local\n\ngo %s\n", goVer), 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "build.go"), []byte(scaffoldBuildGo), 0o644); err != nil {
+		return err
+	}
+	// Resolve the gwext dependency.
+	get := exec.Command("go", "get", "github.com/toyz/gw@latest")
+	get.Dir = dir
+	get.Env = append(os.Environ(), "GOWORK=off")
+	get.Stdout, get.Stderr = cmd.OutOrStdout(), cmd.ErrOrStderr()
+	if err := get.Run(); err != nil {
+		p.warnf("note: `go get github.com/toyz/gw@latest` failed; run it in .gw manually")
+	}
+	return nil
 }
 
 func newExtBuildCmd() *cobra.Command {

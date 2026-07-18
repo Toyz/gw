@@ -72,6 +72,7 @@ func newRootCmd() *cobra.Command {
 		newConfigCmd(),
 		newExtCmd(),
 		newMcpCmd(),
+		newVersionCmd(),
 	)
 	for _, gc := range goCommands {
 		root.AddCommand(gc.command())
@@ -89,6 +90,7 @@ var hookCommandSkip = map[string]bool{
 	"__completeNoDesc": true,
 	"ext":              true,
 	"config":           true,
+	"version":          true,
 }
 
 // hookSuppressFlags mark a read-only/preview run: with one set, the command

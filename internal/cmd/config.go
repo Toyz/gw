@@ -33,8 +33,7 @@ func newConfigInitCmd() *cobra.Command {
 				return failf("%s already exists", filepath.Base(existing)).
 					withHint("edit it directly, or remove it to re-scaffold")
 			}
-			dst := filepath.Join(root, workspace.DefaultConfigName)
-			if err := os.WriteFile(dst, []byte(scaffoldConfig), 0o644); err != nil {
+			if err := writeStarterConfig(root); err != nil {
 				return err
 			}
 			p.ok("wrote %s", workspace.DefaultConfigName)
@@ -64,6 +63,12 @@ func newConfigPathCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// writeStarterConfig writes the commented starter gw.toml into root. Callers
+// check for an existing config first (config init errors; init --all skips).
+func writeStarterConfig(root string) error {
+	return os.WriteFile(filepath.Join(root, workspace.DefaultConfigName), []byte(scaffoldConfig), 0o644)
 }
 
 // scaffoldConfig is the commented starter gw.toml written by `gw config init`.
