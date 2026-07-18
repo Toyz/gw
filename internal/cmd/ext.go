@@ -313,20 +313,16 @@ func stripRootFlag(args []string) []string {
 // since cobra has not parsed flags yet at registration time.
 func earlyResolveRoot() (string, error) {
 	if v := scanRootFlag(os.Args[1:]); v != "" {
-		abs, err := filepath.Abs(v)
-		if err != nil {
-			return "", err
-		}
-		return realPath(abs), nil
+		return filepath.Abs(v)
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 	if r, ok := workspace.FindRoot(cwd); ok {
-		return realPath(r), nil
+		return r, nil
 	}
-	return realPath(cwd), nil
+	return cwd, nil
 }
 
 func scanRootFlag(args []string) string {

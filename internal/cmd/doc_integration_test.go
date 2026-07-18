@@ -59,7 +59,7 @@ func TestDocIntegration(t *testing.T) {
 		t.Fatalf("resolve api: %v (%+v)", err, u)
 	}
 	p, buf := newP()
-	if err := runGoDoc(p, root, nil, u.Name, []string{"Hello"}); err != nil {
+	if err := runGoDoc(p, u.Dir, nil, u.Name, []string{"Hello"}); err != nil {
 		t.Fatalf("runGoDoc: %v", err)
 	}
 	if !strings.Contains(buf.String(), "greets from the api module") {

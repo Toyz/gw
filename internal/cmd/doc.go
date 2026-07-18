@@ -50,35 +50,68 @@ func newDocCmd() *cobra.Command {
 			u, unitErr := resolveUnit(units, ref)
 			if unitErr == nil {
 				if u.IsModule {
-					return runGoDoc(p, root, flags, u.Name, symbol)
+					return runGoDoc(p, u.Dir, flags, u.Name, symbol)
 				}
 				return runProjectDoc(p, cfg, u)
 			}
 			// 2. "<unit-short>/<subpkg>": resolve the head to a Go module's path.
 			if head, tail, ok := strings.Cut(ref, "/"); ok {
 				if hu, err := resolveUnit(units, head); err == nil && hu.IsModule {
-					return runGoDoc(p, root, flags, hu.Name+"/"+tail, symbol)
+					return runGoDoc(p, hu.Dir, flags, hu.Name+"/"+tail, symbol)
 				}
 			}
 			// 3. A path-like ref (full import path, external dep) goes straight to
 			// go doc; a bare name that matched no unit gets the resolve error+hint.
 			if strings.ContainsAny(ref, "./") {
-				return runGoDoc(p, root, flags, ref, symbol)
+				return runGoDoc(p, docDirForPath(units, ref, root), flags, ref, symbol)
 			}
 			return unitErr
 		},
 	}
 }
 
-// runGoDoc runs `go doc [flags] <pkg> [symbol]` from the workspace root, where
-// go.work resolves any workspace package. Its output is the doc lookup verbatim.
-func runGoDoc(p *printer, root string, flags []string, pkg string, symbol []string) error {
+// runGoDoc runs `go doc [flags] <pkg> [symbol]` from dir — a directory inside the
+// package's owning module, so go resolves the import path through that module's
+// build list. Running from the go.work root can't: `go doc <workspace-import-path>`
+// reports "no such package" there on some platforms (it resolves on macOS but not
+// Linux), which is why gw runs it from the module directory it already resolved.
+// Its output is the doc lookup verbatim.
+func runGoDoc(p *printer, dir string, flags []string, pkg string, symbol []string) error {
 	argv := append([]string{"doc"}, flags...)
 	argv = append(argv, pkg)
 	argv = append(argv, symbol...)
 	c := exec.Command("go", argv...)
-	c.Dir = root
+	c.Dir = dir
 	return stream(p, c)
+}
+
+// docDirForPath picks the directory to run `go doc <importPath>` in for a raw
+// import path (no unit matched): the workspace module that owns importPath — its
+// import path equals importPath or is a prefix of it — so the lookup resolves
+// through that module. Longest match wins (nested modules). Falls back to any
+// module's dir (module context still lets go resolve an external dependency), and
+// finally the root when the workspace has no Go modules at all.
+func docDirForPath(units []workspace.Unit, importPath, root string) string {
+	best, dir, firstMod := "", "", ""
+	for _, u := range units {
+		if !u.IsModule {
+			continue
+		}
+		if firstMod == "" {
+			firstMod = u.Dir
+		}
+		if (importPath == u.Name || strings.HasPrefix(importPath, u.Name+"/")) && len(u.Name) > len(best) {
+			best, dir = u.Name, u.Dir
+		}
+	}
+	switch {
+	case dir != "":
+		return dir
+	case firstMod != "":
+		return firstMod
+	default:
+		return root
+	}
 }
 
 // runProjectDoc runs a non-Go unit's `doc` task in its directory (e.g. cargo doc,
